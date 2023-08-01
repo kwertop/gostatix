@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 
 	"github.com/gostatix"
-	"github.com/gostatix/interfaces"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -52,7 +51,7 @@ func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
 	return true, nil
 }
 
-func (aSet BitSetRedis) Equals(otherBitSet interfaces.IBitSet) (bool, error) {
+func (aSet BitSetRedis) Equals(otherBitSet IBitSet) (bool, error) {
 	bSet, ok := otherBitSet.(BitSetRedis)
 	if !ok {
 		return false, fmt.Errorf("invalid bitset type, should be BitSetRedis")

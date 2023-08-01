@@ -1,4 +1,4 @@
-package interfaces
+package bitset
 
 type IBitSet interface {
 	Has(index uint) (bool, error)

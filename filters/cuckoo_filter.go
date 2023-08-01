@@ -20,7 +20,7 @@ type CuckooFilter struct {
 	retries           uint64
 }
 
-type Log struct {
+type Entry struct {
 	fingerPrint string
 	firstIndex  uint64
 	secondIndex uint64
@@ -62,7 +62,7 @@ func (cuckooFilter CuckooFilter) CellSize() uint64 {
 	return cuckooFilter.size * cuckooFilter.bucketSize
 }
 
-func (cuckooFilter CuckooFilter) MaxKicks() uint64 {
+func (cuckooFilter CuckooFilter) Retries() uint64 {
 	return cuckooFilter.retries
 }
 
@@ -80,11 +80,11 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 			index = sIndex
 		}
 		currFingerPrint := fingerPrint
-		var items []Log
+		var items []Entry
 		for i := uint64(0); i < cuckooFilter.retries; i++ {
 			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.filter[index].Length()-1)))
 			prevFingerPrint := cuckooFilter.filter[index].At(index)
-			items = append(items, Log{prevFingerPrint, index, randIndex})
+			items = append(items, Entry{prevFingerPrint, index, randIndex})
 			cuckooFilter.filter[index].Set(randIndex, currFingerPrint)
 			hash := getHash([]byte(prevFingerPrint))
 			newIndex := (index ^ hash) % uint64(len(cuckooFilter.filter))
@@ -150,9 +150,9 @@ func (cuckooFilter CuckooFilter) getPositions(data []byte) (string, uint64, uint
 		return "", 0, 0, fmt.Errorf("the fingerprint length %d is higher than the hash length %d", cuckooFilter.fingerPrintLength, len(hashString))
 	}
 	fingerPrint := hashString[:cuckooFilter.fingerPrintLength]
-	firstIndex := uint64(math.Abs(float64(hash)))
-	secondHash := math.Abs(float64(getHash([]byte(fingerPrint))))
-	secondIndex := uint64(math.Abs(float64(firstIndex ^ uint64(secondHash))))
+	firstIndex := hash % cuckooFilter.size
+	secondHash := getHash([]byte(fingerPrint))
+	secondIndex := (firstIndex ^ secondHash) % cuckooFilter.size
 	return fingerPrint, firstIndex, secondIndex, nil
 }
 

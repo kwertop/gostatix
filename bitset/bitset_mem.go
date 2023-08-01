@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/bits-and-blooms/bitset"
-	"github.com/gostatix/interfaces"
 )
 
 type BitSetMem struct {
@@ -54,7 +53,7 @@ func (bitSet BitSetMem) Import(size uint, data []byte) (bool, error) {
 	return true, nil
 }
 
-func (firstBitSet BitSetMem) Equals(otherBitSet interfaces.IBitSet) (bool, error) {
+func (firstBitSet BitSetMem) Equals(otherBitSet IBitSet) (bool, error) {
 	secondBitSet, ok := otherBitSet.(BitSetMem)
 	if !ok {
 		return false, fmt.Errorf("invalid bitset type, should be BitSetMem")

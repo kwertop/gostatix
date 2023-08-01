@@ -2,12 +2,11 @@ package buckets
 
 type BucketMem struct {
 	elements []string
-	size     uint64
-	length   uint64
+	BaseBucket
 }
 
 func NewBucketMem(size uint64) *BucketMem {
-	return &BucketMem{make([]string, size), size, 0}
+	return &BucketMem{make([]string, size), BaseBucket{size, 0}}
 }
 
 func (bucket BucketMem) Size() uint64 {

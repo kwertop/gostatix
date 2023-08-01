@@ -1,7 +1,6 @@
 package buckets
 
-type BucketRedis struct {
-	key    string
+type BaseBucket struct {
 	size   uint64
 	length uint64
 }

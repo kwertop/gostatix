@@ -6,16 +6,15 @@ import (
 	"github.com/gostatix"
 	"github.com/gostatix/bitset"
 	"github.com/gostatix/hash"
-	"github.com/gostatix/interfaces"
 )
 
 type BloomFilter struct {
 	size      uint
 	numHashes uint
-	filter    interfaces.IBitSet
+	filter    bitset.IBitSet
 }
 
-func NewBloomFilterWithBitSet(size, numHashes uint, filter interfaces.IBitSet) *BloomFilter {
+func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) *BloomFilter {
 	return &BloomFilter{size, numHashes, filter}
 }
 
@@ -73,7 +72,7 @@ func (bloomFilter BloomFilter) GetNumHashes() uint {
 	return bloomFilter.numHashes
 }
 
-func (bloomFilter BloomFilter) GetBitSet() *interfaces.IBitSet {
+func (bloomFilter BloomFilter) GetBitSet() *bitset.IBitSet {
 	return &bloomFilter.filter
 }
 
