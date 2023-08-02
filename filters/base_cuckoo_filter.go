@@ -26,6 +26,16 @@ type AbstractCuckooFilter struct {
 	retries           uint64
 }
 
+func MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, length, retries uint64) *AbstractCuckooFilter {
+	baseFilter := &AbstractCuckooFilter{}
+	baseFilter.size = size
+	baseFilter.bucketSize = bucketSize
+	baseFilter.fingerPrintLength = fingerPrintLength
+	baseFilter.length = length
+	baseFilter.retries = retries
+	return baseFilter
+}
+
 func (cuckooFilter *AbstractCuckooFilter) Size() uint64 {
 	return cuckooFilter.size
 }

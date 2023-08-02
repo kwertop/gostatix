@@ -20,24 +20,20 @@ type Entry struct {
 }
 
 func NewCuckooFilter(size, bucketSize, fingerPrintLength uint64) *CuckooFilter {
-	filter := make([]buckets.BucketMem, bucketSize)
-	baseFilter := &AbstractCuckooFilter{}
-	baseFilter.size = size
-	baseFilter.bucketSize = bucketSize
-	baseFilter.fingerPrintLength = fingerPrintLength
-	baseFilter.length = 0
-	baseFilter.retries = 500
+	filter := make([]buckets.BucketMem, size)
+	for i := range filter {
+		filter[i] = *buckets.NewBucketMem(bucketSize)
+	}
+	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, 0, 500)
 	return &CuckooFilter{filter, baseFilter}
 }
 
 func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uint64) *CuckooFilter {
-	filter := make([]buckets.BucketMem, bucketSize)
-	baseFilter := &AbstractCuckooFilter{}
-	baseFilter.size = size
-	baseFilter.bucketSize = bucketSize
-	baseFilter.fingerPrintLength = fingerPrintLength
-	baseFilter.length = 0
-	baseFilter.retries = retries
+	filter := make([]buckets.BucketMem, size)
+	for i := range filter {
+		filter[i] = *buckets.NewBucketMem(bucketSize)
+	}
+	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, 0, retries)
 	return &CuckooFilter{filter, baseFilter}
 }
 
