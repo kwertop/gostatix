@@ -1,23 +1,16 @@
 package filters
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
-	"strconv"
 
 	"github.com/gostatix"
 	"github.com/gostatix/buckets"
-	"github.com/gostatix/hash"
 )
 
 type CuckooFilter struct {
-	filter            []buckets.BucketMem
-	size              uint64
-	bucketSize        uint64
-	fingerPrintLength uint64
-	length            uint64
-	retries           uint64
+	filter []buckets.BucketMem
+	*AbstractCuckooFilter
 }
 
 type Entry struct {
@@ -28,42 +21,30 @@ type Entry struct {
 
 func NewCuckooFilter(size, bucketSize, fingerPrintLength uint64) *CuckooFilter {
 	filter := make([]buckets.BucketMem, bucketSize)
-	return &CuckooFilter{filter, size, bucketSize, fingerPrintLength, 0, 500}
+	baseFilter := &AbstractCuckooFilter{}
+	baseFilter.size = size
+	baseFilter.bucketSize = bucketSize
+	baseFilter.fingerPrintLength = fingerPrintLength
+	baseFilter.length = 0
+	baseFilter.retries = 500
+	return &CuckooFilter{filter, baseFilter}
 }
 
-func NewCuckooFilterWithMaxKicks(size, bucketSize, fingerPrintLength, maxKicks uint64) *CuckooFilter {
+func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uint64) *CuckooFilter {
 	filter := make([]buckets.BucketMem, bucketSize)
-	return &CuckooFilter{filter, size, bucketSize, fingerPrintLength, 0, maxKicks}
+	baseFilter := &AbstractCuckooFilter{}
+	baseFilter.size = size
+	baseFilter.bucketSize = bucketSize
+	baseFilter.fingerPrintLength = fingerPrintLength
+	baseFilter.length = 0
+	baseFilter.retries = retries
+	return &CuckooFilter{filter, baseFilter}
 }
 
-func NewCuckooFilterWithErrorRate(size, bucketSize, maxKicks uint64, errorRate float64) *CuckooFilter {
+func NewCuckooFilterWithErrorRate(size, bucketSize, retries uint64, errorRate float64) *CuckooFilter {
 	fingerPrintLength := gostatix.CalculateFingerPrintLength(size, errorRate)
 	capacity := uint64(math.Ceil(float64(size) * 0.955 / float64(bucketSize)))
-	return NewCuckooFilterWithMaxKicks(capacity, bucketSize, fingerPrintLength, maxKicks)
-}
-
-func (cuckooFilter CuckooFilter) Size() uint64 {
-	return cuckooFilter.size
-}
-
-func (cuckooFilter CuckooFilter) Length() uint64 {
-	return cuckooFilter.length
-}
-
-func (cuckooFilter CuckooFilter) BucketSize() uint64 {
-	return cuckooFilter.bucketSize
-}
-
-func (cuckooFilter CuckooFilter) FingerPrintLength() uint64 {
-	return cuckooFilter.fingerPrintLength
-}
-
-func (cuckooFilter CuckooFilter) CellSize() uint64 {
-	return cuckooFilter.size * cuckooFilter.bucketSize
-}
-
-func (cuckooFilter CuckooFilter) Retries() uint64 {
-	return cuckooFilter.retries
+	return NewCuckooFilterWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }
 
 func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
@@ -127,10 +108,6 @@ func (cuckooFilter *CuckooFilter) Remove(data []byte) bool {
 	}
 }
 
-func (cuckooFilter CuckooFilter) CuckooPositiveRate() float64 {
-	return math.Pow(2, math.Log2(float64(2*cuckooFilter.bucketSize))-float64(cuckooFilter.fingerPrintLength))
-}
-
 func (aFilter CuckooFilter) Equals(bFilter CuckooFilter) bool {
 	count := 0
 	result := true
@@ -141,22 +118,4 @@ func (aFilter CuckooFilter) Equals(bFilter CuckooFilter) bool {
 		}
 	}
 	return true
-}
-
-func (cuckooFilter CuckooFilter) getPositions(data []byte) (string, uint64, uint64, error) {
-	hash := getHash(data)
-	hashString := strconv.FormatUint(hash, 10)
-	if cuckooFilter.fingerPrintLength > uint64(len(hashString)) {
-		return "", 0, 0, fmt.Errorf("the fingerprint length %d is higher than the hash length %d", cuckooFilter.fingerPrintLength, len(hashString))
-	}
-	fingerPrint := hashString[:cuckooFilter.fingerPrintLength]
-	firstIndex := hash % cuckooFilter.size
-	secondHash := getHash([]byte(fingerPrint))
-	secondIndex := (firstIndex ^ secondHash) % cuckooFilter.size
-	return fingerPrint, firstIndex, secondIndex, nil
-}
-
-func getHash(data []byte) uint64 {
-	hash1, _ := hash.Sum128(data)
-	return hash1
 }

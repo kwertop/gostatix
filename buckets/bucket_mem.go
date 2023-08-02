@@ -2,23 +2,14 @@ package buckets
 
 type BucketMem struct {
 	elements []string
-	BaseBucket
+	*AbstractBucket
 }
 
 func NewBucketMem(size uint64) *BucketMem {
-	return &BucketMem{make([]string, size), BaseBucket{size, 0}}
-}
-
-func (bucket BucketMem) Size() uint64 {
-	return bucket.size
-}
-
-func (bucket BucketMem) Length() uint64 {
-	return bucket.length
-}
-
-func (bucket BucketMem) IsFree() bool {
-	return bucket.length < bucket.size
+	bucket := &AbstractBucket{}
+	bucket.size = size
+	bucket.length = 0
+	return &BucketMem{make([]string, size), bucket}
 }
 
 func (bucket BucketMem) NextSlot() int64 {
