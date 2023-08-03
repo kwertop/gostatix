@@ -8,6 +8,12 @@ import (
 	"github.com/gostatix/hash"
 )
 
+type Entry struct {
+	fingerPrint string
+	firstIndex  uint64
+	secondIndex uint64
+}
+
 type BaseCuckooFilter interface {
 	Size() uint64
 	Length() uint64

@@ -98,7 +98,7 @@ func (bucket *BucketRedis) UnSet(index uint64) error {
 	}
 }
 
-func (bucket BucketRedis) Equals(otherBucket BucketRedis) (bool, error) {
+func (bucket *BucketRedis) Equals(otherBucket *BucketRedis) (bool, error) {
 	if bucket.size != otherBucket.size || bucket.length != otherBucket.length {
 		return false, nil
 	}

@@ -13,12 +13,6 @@ type CuckooFilter struct {
 	*AbstractCuckooFilter
 }
 
-type Entry struct {
-	fingerPrint string
-	firstIndex  uint64
-	secondIndex uint64
-}
-
 func NewCuckooFilter(size, bucketSize, fingerPrintLength uint64) *CuckooFilter {
 	return NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, 500)
 }
@@ -107,6 +101,7 @@ func (aFilter CuckooFilter) Equals(bFilter CuckooFilter) bool {
 		if !bFilter.filter[count].Equals(bucket) {
 			return false
 		}
+		count++
 	}
 	return true
 }
