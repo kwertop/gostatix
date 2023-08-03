@@ -13,23 +13,11 @@ type BucketRedis struct {
 	*AbstractBucket
 }
 
-func NewBucketRedis(key string, size uint64) (*BucketRedis, error) {
+func NewBucketRedis(key string, size uint64) *BucketRedis {
 	bucket := &AbstractBucket{}
 	bucket.size = size
 	bucket.length = 0
-	initList := redis.NewScript(`
-		local key = KEYS[1]
-		local size = ARGV[1]
-		redis.call("DEL", key)
-		for i=1, size do
-			redis.call("LPUSH", key, "")
-		end
-	`)
-	_, err := initList.Run(context.Background(), gostatix.GetRedisClient(), []string{key}, size).Result()
-	if err != nil {
-		return nil, fmt.Errorf("gostatix: error while initializing cuckoofilter redis bucket: %v", err)
-	}
-	return &BucketRedis{key, bucket}, nil
+	return &BucketRedis{key, bucket}
 }
 
 func (bucket BucketRedis) NextSlot() (int64, error) {
