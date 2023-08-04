@@ -52,7 +52,7 @@ func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
 }
 
 func (aSet BitSetRedis) Equals(otherBitSet IBitSet) (bool, error) {
-	bSet, ok := otherBitSet.(BitSetRedis)
+	bSet, ok := otherBitSet.(*BitSetRedis)
 	if !ok {
 		return false, fmt.Errorf("invalid bitset type, should be BitSetRedis")
 	}

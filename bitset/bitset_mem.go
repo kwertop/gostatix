@@ -16,7 +16,7 @@ func NewBitSetMem(size uint) *BitSetMem {
 }
 
 func FromDataMem(data []uint64) *BitSetMem {
-	return &BitSetMem{*bitset.From(data), uint(len(data))}
+	return &BitSetMem{*bitset.From(data), uint(len(data) * 64)}
 }
 
 func (bitSet BitSetMem) Has(index uint) (bool, error) {
@@ -54,9 +54,9 @@ func (bitSet BitSetMem) Import(size uint, data []byte) (bool, error) {
 }
 
 func (firstBitSet BitSetMem) Equals(otherBitSet IBitSet) (bool, error) {
-	secondBitSet, ok := otherBitSet.(BitSetMem)
+	secondBitSet, ok := otherBitSet.(*BitSetMem)
 	if !ok {
-		return false, fmt.Errorf("invalid bitset type, should be BitSetMem")
+		return false, fmt.Errorf("invalid bitset type, should be BitSetMem, type: %v", secondBitSet)
 	}
 	return firstBitSet.set.Equal(&secondBitSet.set), nil
 }
