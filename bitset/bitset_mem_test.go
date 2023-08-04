@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBitSetHas(t *testing.T) {
+func TestBitSetMemHas(t *testing.T) {
 	bitset := NewBitSetMem(4)
 	bitset.Insert(2)
 	bitset.Insert(3)
@@ -18,7 +18,7 @@ func TestBitSetHas(t *testing.T) {
 	}
 }
 
-func TestBitSetFromData(t *testing.T) {
+func TestBitSetMemFromData(t *testing.T) {
 	bitset := FromDataMem([]uint64{3, 10})
 	if ok, _ := bitset.Has(0); !ok {
 		t.Fatalf("should be true at index 0, got %v", ok)
@@ -43,7 +43,7 @@ func TestBitSetFromData(t *testing.T) {
 	}
 }
 
-func TestBitSetSetBits(t *testing.T) {
+func TestBitSetMemSetBits(t *testing.T) {
 	bitset := FromDataMem([]uint64{3, 10})
 	setBits, _ := bitset.BitCount()
 	if setBits != 4 {
@@ -51,7 +51,7 @@ func TestBitSetSetBits(t *testing.T) {
 	}
 }
 
-func TestBitSetExport(t *testing.T) {
+func TestBitSetMemExport(t *testing.T) {
 	bitset := NewBitSetMem(6)
 	bitset.Insert(1)
 	bitset.Insert(5)
@@ -66,7 +66,7 @@ func TestBitSetExport(t *testing.T) {
 	}
 }
 
-func TestBitSetImport(t *testing.T) {
+func TestBitSetMemImport(t *testing.T) {
 	bitset := NewBitSetMem(6)
 	str := "\"AAAAAAAAAAYAAAAAAAABIg==\""
 	bitset.Import(6, []byte(str))
@@ -84,7 +84,7 @@ func TestBitSetImport(t *testing.T) {
 	}
 }
 
-func TestBitSetNotEqual(t *testing.T) {
+func TestBitSetMemNotEqual(t *testing.T) {
 	aBitset := NewBitSetMem(0)
 	bBitset := NewBitSetRedis(0, "k")
 	if ok, _ := aBitset.Equals(bBitset); ok {
@@ -92,7 +92,7 @@ func TestBitSetNotEqual(t *testing.T) {
 	}
 }
 
-func TestBitSetEqual(t *testing.T) {
+func TestBitSetMemEqual(t *testing.T) {
 	aBitset := NewBitSetMem(3)
 	aBitset.Insert(0)
 	aBitset.Insert(1)
