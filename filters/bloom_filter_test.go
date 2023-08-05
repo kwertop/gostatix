@@ -171,3 +171,43 @@ func TestGetNumHashes(t *testing.T) {
 		t.Errorf("getnumhashes method return value %v doesn't match with filter numHashes %v", filter.GetNumHashes(), filter.numHashes)
 	}
 }
+
+func TestNotEqualsSize(t *testing.T) {
+	aBitset := bitset.NewBitSetMem(1000)
+	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset)
+	bBitset := bitset.NewBitSetMem(100)
+	bFilter, _ := NewBloomFilterWithBitSet(100, 4, bBitset)
+	if ok, _ := aFilter.Equals(*bFilter); ok {
+		t.Errorf("aFilter and bFilter shouldn't be equal")
+	}
+}
+
+func TestNotEqualsNumHashes(t *testing.T) {
+	aBitset := bitset.NewBitSetMem(1000)
+	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset)
+	bBitset := bitset.NewBitSetMem(100)
+	bFilter, _ := NewBloomFilterWithBitSet(100, 6, bBitset)
+	if ok, _ := aFilter.Equals(*bFilter); ok {
+		t.Errorf("aFilter and bFilter shouldn't be equal")
+	}
+}
+
+func TestEquals(t *testing.T) {
+	size, numHashes := 1000, 4
+	aBitset := bitset.NewBitSetMem(uint(size))
+	aFilter, _ := NewBloomFilterWithBitSet(uint(size), uint(numHashes), aBitset)
+	e := make([]byte, 4)
+	for i := uint32(0); i < uint32(size); i++ {
+		binary.BigEndian.PutUint32(e, i)
+		aFilter.Insert(e)
+	}
+	bBitset := bitset.NewBitSetMem(uint(size))
+	bFilter, _ := NewBloomFilterWithBitSet(uint(size), uint(numHashes), bBitset)
+	for i := uint32(0); i < uint32(size); i++ {
+		binary.BigEndian.PutUint32(e, i)
+		bFilter.Insert(e)
+	}
+	if ok, _ := aFilter.Equals(*bFilter); !ok {
+		t.Errorf("aFilter and bFilter should be equal")
+	}
+}

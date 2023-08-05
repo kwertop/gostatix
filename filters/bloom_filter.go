@@ -104,6 +104,9 @@ func (bloomFilter BloomFilter) BloomPositiveRate() float64 {
 }
 
 func (aFilter BloomFilter) Equals(bFilter BloomFilter) (bool, error) {
+	if aFilter.size != bFilter.size || aFilter.numHashes != bFilter.numHashes {
+		return false, nil
+	}
 	ok, err := aFilter.filter.Equals(bFilter.filter)
 	if err != nil {
 		return false, err
