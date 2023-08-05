@@ -19,6 +19,10 @@ func FromDataMem(data []uint64) *BitSetMem {
 	return &BitSetMem{*bitset.From(data), uint(len(data) * 64)}
 }
 
+func (bitSet BitSetMem) Size() uint {
+	return bitSet.size
+}
+
 func (bitSet BitSetMem) Has(index uint) (bool, error) {
 	return bitSet.set.Test(index), nil
 }

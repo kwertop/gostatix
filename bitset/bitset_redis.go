@@ -40,6 +40,10 @@ func FromDataRedis(data []uint64, key string) (*BitSetRedis, error) {
 	return bitSetRedis, nil
 }
 
+func (bitSet BitSetRedis) Size() uint {
+	return bitSet.size
+}
+
 func (bitSet BitSetRedis) Has(index uint) (bool, error) {
 	val, err := gostatix.GetRedisClient().GetBit(context.Background(), bitSet.key, int64(index)).Result()
 	if err != nil {

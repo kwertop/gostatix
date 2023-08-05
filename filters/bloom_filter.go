@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/gostatix"
@@ -14,18 +15,21 @@ type BloomFilter struct {
 	filter    bitset.IBitSet
 }
 
-func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) *BloomFilter {
-	return &BloomFilter{size, numHashes, filter}
+func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) (*BloomFilter, error) {
+	if filter.Size() != size {
+		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
+	}
+	return &BloomFilter{size, numHashes, filter}, nil
 }
 
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64, redisUrl, key string) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetRedis(size, key)
-	return NewBloomFilterWithBitSet(size, numHashes, filter), nil
+	return NewBloomFilterWithBitSet(size, numHashes, filter)
 }
 
-func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) *BloomFilter {
+func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetMem(size)
