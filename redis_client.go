@@ -65,16 +65,16 @@ func ParseRedisURI(uri string) (*RedisConnOptions, error) {
 }
 
 func makeConnOptions(options *redis.Options) *RedisConnOptions {
-	var opt *RedisConnOptions
-	opt.DB = options.DB
-	opt.Network = options.Network
-	opt.Address = options.Addr
-	opt.Username = options.Username
-	opt.Password = options.Password
-	opt.ConnectionTimeout = options.DialTimeout
-	opt.ReadTimeout = options.ReadTimeout
-	opt.WriteTimeout = options.WriteTimeout
-	opt.PoolSize = options.PoolSize
-	opt.TLSConfig = options.TLSConfig
-	return opt
+	return &RedisConnOptions{
+		options.DB,
+		options.Network,
+		options.Addr,
+		options.Username,
+		options.Password,
+		options.DialTimeout,
+		options.ReadTimeout,
+		options.WriteTimeout,
+		options.PoolSize,
+		options.TLSConfig,
+	}
 }

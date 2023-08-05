@@ -45,6 +45,14 @@ func (bitSet BitSetMem) Export() (uint, []byte, error) {
 	return bitSet.size, data, nil
 }
 
+func (bitSet BitSetMem) ExportBinary() (uint, []byte, error) {
+	data, err := bitSet.set.MarshalBinary()
+	if err != nil {
+		return 0, nil, err
+	}
+	return bitSet.size, data, nil
+}
+
 func (bitSet BitSetMem) Import(size uint, data []byte) (bool, error) {
 	err := bitSet.set.UnmarshalJSON(data)
 	if err != nil {

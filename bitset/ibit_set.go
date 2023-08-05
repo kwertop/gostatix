@@ -1,5 +1,8 @@
 package bitset
 
+const wordSize = uint(64)
+const wordBytes = wordSize / 8
+
 type IBitSet interface {
 	Has(index uint) (bool, error)
 	Insert(index uint) (bool, error)

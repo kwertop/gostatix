@@ -47,6 +47,22 @@ func GenerateRandomString(n int) string {
 	return *(*string)(unsafe.Pointer(&b))
 }
 
+func ReverseBytes(slice []byte) {
+	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+}
+
+func ConvertByteToLittleEndianByte(originalByte byte) byte {
+	var resultByte byte
+	for i := 0; i < 8; i++ {
+		if originalByte&(1<<i) != 0 {
+			resultByte |= 1 << (7 - i)
+		}
+	}
+	return resultByte
+}
+
 type BitSetType int
 
 const (

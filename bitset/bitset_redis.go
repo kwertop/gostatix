@@ -19,16 +19,21 @@ type BitSetRedis struct {
 }
 
 func NewBitSetRedis(size uint, key string) *BitSetRedis {
+	bytes := make([]byte, wordBytes*size)
+	for i := range bytes {
+		bytes[i] = 0x00
+	}
+	_ = gostatix.GetRedisClient().Set(context.Background(), key, string(bytes), 0).Err()
 	return &BitSetRedis{size, key}
 }
 
 func FromDataRedis(data []uint64, key string) (*BitSetRedis, error) {
-	bitSetRedis := NewBitSetRedis(uint(len(data)), key)
+	bitSetRedis := NewBitSetRedis(uint(len(data)*64), key)
 	bytes, err := uint64ArrayToByteArray(data)
 	if err != nil {
 		return nil, err
 	}
-	_, err = bitSetRedis.Import(bitSetRedis.size, bytes)
+	err = gostatix.GetRedisClient().Set(context.Background(), key, string(bytes), 0).Err()
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +94,15 @@ func (bitSet BitSetRedis) Export() (uint, []byte, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	data, err := json.Marshal(base64.URLEncoding.EncodeToString([]byte(val)))
+	bytes := []byte(val)
+	for i := range bytes {
+		bytes[i] = gostatix.ConvertByteToLittleEndianByte(bytes[i])
+	}
+	gostatix.ReverseBytes(bytes)
+	buf := make([]byte, wordBytes)
+	binary.BigEndian.PutUint64(buf, uint64(bitSet.size))
+	bytes = append(buf, bytes...)
+	data, err := json.Marshal(base64.URLEncoding.EncodeToString([]byte(bytes)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -118,9 +131,13 @@ func uint64ArrayToByteArray(data []uint64) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Write each uint64 element to the buffer
-	for _, v := range data {
-		if err := binary.Write(buf, binary.BigEndian, v); err != nil {
-			return nil, err
+	for _, value := range data {
+		valueBytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(valueBytes, value)
+		for _, val := range valueBytes {
+			if err := binary.Write(buf, binary.LittleEndian, gostatix.ConvertByteToLittleEndianByte(val)); err != nil {
+				return nil, err
+			}
 		}
 	}
 

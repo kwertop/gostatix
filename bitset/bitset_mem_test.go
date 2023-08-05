@@ -3,6 +3,9 @@ package bitset
 import (
 	"fmt"
 	"testing"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/gostatix"
 )
 
 func TestBitSetMemHas(t *testing.T) {
@@ -85,6 +88,10 @@ func TestBitSetMemImport(t *testing.T) {
 }
 
 func TestBitSetMemNotEqual(t *testing.T) {
+	mr, _ := miniredis.Run()
+	redisUri := "redis://" + mr.Addr()
+	connOptions, _ := gostatix.ParseRedisURI(redisUri)
+	gostatix.MakeRedisClient(*connOptions)
 	aBitset := NewBitSetMem(0)
 	bBitset := NewBitSetRedis(0, "k")
 	if ok, _ := aBitset.Equals(bBitset); ok {
