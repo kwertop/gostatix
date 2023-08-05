@@ -19,21 +19,21 @@ func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) (*Blo
 	if filter.Size() != size {
 		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
 	}
-	return &BloomFilter{size, numHashes, filter}, nil
+	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter}, nil
 }
 
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64, redisUrl, key string) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetRedis(size, key)
-	return NewBloomFilterWithBitSet(size, numHashes, filter)
+	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter)
 }
 
 func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetMem(size)
-	return NewBloomFilterWithBitSet(size, numHashes, filter)
+	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter)
 }
 
 func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint, key string) (*BloomFilter, error) {
@@ -42,12 +42,12 @@ func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &BloomFilter{size, numHashes, bitSetRedis}, nil
+	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), bitSetRedis}, nil
 }
 
 func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 	size := uint(len(data) * 64)
-	return &BloomFilter{size, numHashes, bitset.FromDataMem(data)}
+	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), bitset.FromDataMem(data)}
 }
 
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
