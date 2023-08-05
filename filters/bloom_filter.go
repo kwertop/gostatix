@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/gostatix"
-	"github.com/gostatix/bitset"
-	"github.com/gostatix/hash"
+	"github.com/kwertop/gostatix"
+	"github.com/kwertop/gostatix/bitset"
+	"github.com/kwertop/gostatix/hash"
 )
 
 type BloomFilter struct {

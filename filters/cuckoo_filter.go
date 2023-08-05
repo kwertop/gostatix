@@ -4,8 +4,8 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/gostatix"
-	"github.com/gostatix/buckets"
+	"github.com/kwertop/gostatix"
+	"github.com/kwertop/gostatix/buckets"
 )
 
 type CuckooFilter struct {

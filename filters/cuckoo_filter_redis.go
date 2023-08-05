@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"strconv"
 
-	"github.com/gostatix"
-	"github.com/gostatix/buckets"
+	"github.com/kwertop/gostatix"
+	"github.com/kwertop/gostatix/buckets"
 	"github.com/redis/go-redis/v9"
 )
 

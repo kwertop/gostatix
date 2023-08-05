@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gostatix"
+	"github.com/kwertop/gostatix"
 	"github.com/redis/go-redis/v9"
 )
 

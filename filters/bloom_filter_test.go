@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/gostatix/bitset"
+	"github.com/kwertop/gostatix/bitset"
 )
 
 func TestFilterSizeError(t *testing.T) {

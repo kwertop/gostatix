@@ -5,7 +5,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/gostatix/hash"
+	"github.com/kwertop/gostatix/hash"
 )
 
 type Entry struct {
