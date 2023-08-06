@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"encoding/json"
 	"math"
 	"math/rand"
 
@@ -104,4 +105,39 @@ func (aFilter CuckooFilter) Equals(bFilter CuckooFilter) bool {
 		count++
 	}
 	return true
+}
+
+type cuckooFilterMemJSON struct {
+	Size              uint64              `json:"s"`
+	BucketSize        uint64              `json:"bs"`
+	FingerPrintLength uint64              `json:"fpl"`
+	Length            uint64              `json:"l"`
+	Retries           uint64              `json:"r"`
+	Filter            []buckets.BucketMem `json:"f"`
+}
+
+func (cuckooFilter CuckooFilter) Export() ([]byte, error) {
+	return json.Marshal(cuckooFilterMemJSON{
+		cuckooFilter.size,
+		cuckooFilter.bucketSize,
+		cuckooFilter.fingerPrintLength,
+		cuckooFilter.length,
+		cuckooFilter.retries,
+		cuckooFilter.filter,
+	})
+}
+
+func (cuckooFilter CuckooFilter) Import(data []byte) error {
+	var f cuckooFilterMemJSON
+	err := json.Unmarshal(data, &f)
+	if err != nil {
+		return err
+	}
+	cuckooFilter.size = f.Size
+	cuckooFilter.bucketSize = f.BucketSize
+	cuckooFilter.fingerPrintLength = f.FingerPrintLength
+	cuckooFilter.length = f.Length
+	cuckooFilter.retries = f.Retries
+	cuckooFilter.filter = f.Filter
+	return nil
 }
