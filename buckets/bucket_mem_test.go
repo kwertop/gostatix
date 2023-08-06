@@ -2,7 +2,7 @@ package buckets
 
 import "testing"
 
-func TestBasic(t *testing.T) {
+func TestBasicBucketMem(t *testing.T) {
 	bucket := NewBucketMem(100)
 	bucket.Add("foo")
 	bucket.Add("bar")
@@ -78,7 +78,7 @@ func TestBucketRemove(t *testing.T) {
 	}
 }
 
-func TestEquals(t *testing.T) {
+func TestBucketMemEquals(t *testing.T) {
 	b1 := NewBucketMem(10)
 	b1.Add("foo")
 	b1.Add("bar")

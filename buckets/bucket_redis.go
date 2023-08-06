@@ -44,10 +44,11 @@ func (bucket *BucketRedis) Add(element string) (bool, error) {
 	addElement := redis.NewScript(`
 		local key = KEYS[1]
 		local element = ARGV[1]
-		local pos = redis.call("LPOS", key, "", 1, 0)
-		redis.call("LSET", key, pos, element)
+		local pos = redis.call('LPOS', key, '')
+		local reply = redis.call('LSET', key, tonumber(pos), element)
+		return true
 	`)
-	_, err := addElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Result()
+	_, err := addElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Bool()
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while adding element %s, error: %v", element, err)
 	}
@@ -55,14 +56,15 @@ func (bucket *BucketRedis) Add(element string) (bool, error) {
 	return true, nil
 }
 
-func (bucket BucketRedis) Remove(element string) (bool, error) {
+func (bucket *BucketRedis) Remove(element string) (bool, error) {
 	removeElement := redis.NewScript(`
 		local key = KEYS[1]
 		local element = ARGV[1]
-		local pos = redis.call("LPOS", key, element, 1, 0)
-		redis.call("LSET", key, pos, "")
+		local pos = redis.call('LPOS', key, element)
+		redis.call('LSET', key, pos, '')
+		return true
 	`)
-	_, err := removeElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Result()
+	_, err := removeElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Bool()
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while removing element %s, error: %v", element, err)
 	}
@@ -106,10 +108,10 @@ func (bucket *BucketRedis) Equals(otherBucket *BucketRedis) (bool, error) {
 		local key1 = KEYS[1]
 		local key2 = KEYS[2]
 		local size = ARGV[1]
-		for i=1,size do
+		for i=1, tonumber(size) do
 			local val1 = redis.pcall("LINDEX", key1, i)
 			local val2 = redis.pcall("LINDEX", key2, i)
-			if val1 != val2 then
+			if val1 ~= val2 then
 				return false
 			end
 		end
