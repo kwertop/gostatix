@@ -245,3 +245,13 @@ func TestExportImport(t *testing.T) {
 		t.Errorf("%v should not be in the filter.", "blooms")
 	}
 }
+
+func TestImportInvalidJSON(t *testing.T) {
+	data := []byte("{invalid}")
+
+	var g BloomFilter
+	err := g.Import(data)
+	if err == nil {
+		t.Error("expected error while unmarshalling invalid data")
+	}
+}
