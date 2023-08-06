@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -112,4 +113,30 @@ func (aFilter BloomFilter) Equals(bFilter BloomFilter) (bool, error) {
 		return false, err
 	}
 	return ok, nil
+}
+
+type bloomFilterType struct {
+	M uint   `json:"m"`
+	K uint   `json:"k"`
+	B []byte `json:"b"`
+}
+
+func (bloomFilter *BloomFilter) Export() ([]byte, error) {
+	_, bitset, err := bloomFilter.filter.Export()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(bloomFilterType{bloomFilter.size, bloomFilter.numHashes, bitset})
+}
+
+func (bloomFilter *BloomFilter) Import(data []byte) error {
+	var f bloomFilterType
+	err := json.Unmarshal(data, &f)
+	if err != nil {
+		return err
+	}
+	bloomFilter.size = f.M
+	bloomFilter.numHashes = f.K
+	_, err = bloomFilter.filter.Import(f.B)
+	return err
 }

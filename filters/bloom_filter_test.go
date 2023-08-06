@@ -211,3 +211,37 @@ func TestEquals(t *testing.T) {
 		t.Errorf("aFilter and bFilter should be equal")
 	}
 }
+
+func TestExportImport(t *testing.T) {
+	aBitset := bitset.NewBitSetMem(1000)
+	afilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset)
+	e1 := "This"
+	e2 := "is"
+	e3 := "present"
+	e4 := "in"
+	e5 := "bloom"
+	afilter.InsertString(e1)
+	afilter.InsertString(e2)
+	afilter.InsertString(e4)
+	afilter.InsertString(e5)
+	exportedFilter, _ := afilter.Export()
+	bBitset := bitset.NewBitSetMem(1000)
+	bFilter, _ := NewBloomFilterWithBitSet(1000, 4, bBitset)
+	bFilter.Import(exportedFilter)
+	ok1 := bFilter.LookupString(e1)
+	ok2 := bFilter.LookupString(e2)
+	ok3 := bFilter.LookupString(e3)
+	ok4 := bFilter.LookupString("blooms")
+	if !ok1 {
+		t.Errorf("%v should be in the filter.", e1)
+	}
+	if !ok2 {
+		t.Errorf("%v should be in the filter.", e2)
+	}
+	if ok3 {
+		t.Errorf("%v should not be in the filter.", e3)
+	}
+	if ok4 {
+		t.Errorf("%v should not be in the filter.", "blooms")
+	}
+}

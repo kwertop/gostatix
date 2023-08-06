@@ -72,7 +72,7 @@ func TestBitSetMemExport(t *testing.T) {
 func TestBitSetMemImport(t *testing.T) {
 	bitset := NewBitSetMem(6)
 	str := "\"AAAAAAAAAAYAAAAAAAABIg==\""
-	bitset.Import(6, []byte(str))
+	bitset.Import([]byte(str))
 	if ok, _ := bitset.Has(0); ok {
 		t.Fatalf("should be false at index 0, got %v", ok)
 	}

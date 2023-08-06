@@ -57,8 +57,9 @@ func (bitSet BitSetMem) ExportBinary() (uint, []byte, error) {
 	return bitSet.size, data, nil
 }
 
-func (bitSet BitSetMem) Import(size uint, data []byte) (bool, error) {
+func (bitSet *BitSetMem) Import(data []byte) (bool, error) {
 	err := bitSet.set.UnmarshalJSON(data)
+	bitSet.size = bitSet.set.Len()
 	if err != nil {
 		return false, err
 	}

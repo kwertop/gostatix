@@ -11,5 +11,5 @@ type IBitSet interface {
 	Max() (uint, bool)
 	BitCount() (uint, error)
 	Export() (uint, []byte, error)
-	Import(size uint, data []byte) (bool, error)
+	Import(data []byte) (bool, error)
 }

@@ -113,15 +113,20 @@ func (bitSet BitSetRedis) Export() (uint, []byte, error) {
 	return bitSet.size, data, nil
 }
 
-func (bitSet BitSetRedis) Import(size uint, data []byte) (bool, error) {
-	var bytes []byte
-	err := json.Unmarshal(data, &bytes)
+func (bitSet *BitSetRedis) Import(data []byte) (bool, error) {
+	var s string
+	err := json.Unmarshal(data, &s)
 	if err != nil {
 		return false, err
 	}
-	_, err = base64.URLEncoding.Decode(bytes, bytes)
-	if err != nil {
-		return false, err
+	bytes, _ := base64.URLEncoding.DecodeString(s)
+	lenBytes := bytes[:8]
+	bytes = bytes[8:]
+	size := binary.BigEndian.Uint64(lenBytes)
+	bitSet.size = uint(size)
+	gostatix.ReverseBytes(bytes)
+	for i := range bytes {
+		bytes[i] = gostatix.ConvertByteToLittleEndianByte(bytes[i])
 	}
 	err = gostatix.GetRedisClient().Set(context.Background(), bitSet.key, string(bytes), 0).Err()
 	if err != nil {

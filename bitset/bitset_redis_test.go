@@ -78,10 +78,38 @@ func TestBitSetRedisExport(t *testing.T) {
 	size, data, _ := bitset.Export()
 	str := "\"AAAAAAAAAAEAAAAAAAABIg==\""
 	if size != 1 {
-		t.Fatalf("size of bitset should be 6, got %v", size)
+		t.Fatalf("size of bitset should be 1, got %v", size)
 	}
 	if string(data) != str {
 		t.Fatalf("exported string don't match %v, %v", string(data), str)
+	}
+}
+
+func TestBitSetRedisImport(t *testing.T) {
+	mr, _ := miniredis.Run()
+	redisUri := "redis://" + mr.Addr()
+	connOptions, _ := gostatix.ParseRedisURI(redisUri)
+	gostatix.MakeRedisClient(*connOptions)
+	str := "\"AAAAAAAAAAEAAAAAAAABIg==\""
+	bitset := NewBitSetRedis(1, "bar")
+	ok, _ := bitset.Import([]byte(str))
+	if !ok {
+		t.Fatalf("import failed for %v", str)
+	}
+	if ok, _ := bitset.Has(0); ok {
+		t.Fatalf("should be false at index 0, got %v", ok)
+	}
+	if ok, _ := bitset.Has(1); !ok {
+		t.Fatalf("should be true at index 1, got %v", ok)
+	}
+	if ok, _ := bitset.Has(5); !ok {
+		t.Fatalf("should be true at index 5, got %v", ok)
+	}
+	if ok, _ := bitset.Has(8); !ok {
+		t.Fatalf("should be true at index 8, got %v", ok)
+	}
+	if ok, _ := bitset.Has(10); ok {
+		t.Fatalf("should be false at index 10, got %v", ok)
 	}
 }
 
