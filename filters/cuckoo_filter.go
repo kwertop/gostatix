@@ -62,7 +62,7 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 			}
 		}
 		if !destructive {
-			for i := len(items); i >= 0; i-- {
+			for i := len(items) - 1; i >= 0; i-- {
 				item := items[i]
 				cuckooFilter.buckets[item.firstIndex].Set(item.secondIndex, item.fingerPrint)
 			}
