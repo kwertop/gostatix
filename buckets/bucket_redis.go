@@ -73,13 +73,24 @@ func (bucket *BucketRedis) Remove(element string) (bool, error) {
 }
 
 func (bucket BucketRedis) Lookup(element string) (bool, error) {
-	lPosArgs := redis.LPosArgs{Rank: 1, MaxLen: 0}
-	pos, err := gostatix.GetRedisClient().LPos(context.Background(), bucket.key, element, lPosArgs).Uint64()
-	if err == nil || err.Error() == "redis: nil" {
-		return pos > 0, nil
-	} else {
+	//Redis returns nil if an element doesn't exist in the list
+	//While Golang Redis LPos command returns 0 for non-existent element inside the list
+	//This becomes confusing for the index of the first element in the list and non-existent values
+	//below script handles the ambiguity
+	exists := redis.NewScript(`
+		local key = KEYS[1]
+		local element = ARGV[1]
+		local pos = redis.pcall('LPOS', key, element)
+		if pos == false then
+			return -1
+		end
+		return tonumber(pos)
+	`)
+	pos, err := exists.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Int64()
+	if err != nil {
 		return false, fmt.Errorf("gostatix: error while searching for %s, error: %v", element, err)
 	}
+	return pos > -1, nil
 }
 
 func (bucket BucketRedis) Set(index uint64, element string) error {

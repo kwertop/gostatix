@@ -129,6 +129,23 @@ func TestCuckooRedisInsertAndLookup(t *testing.T) {
 	}
 }
 
+func TestRemovePresentCuckooRedis(t *testing.T) {
+	initMockRedis()
+	filter, _ := NewCuckooFilterRedisWithErrorRate(20, 4, 500, 0.01)
+	e1 := []byte("foo")
+	e2 := []byte("bar")
+	filter.Insert(e1, false)
+	filter.Insert(e2, false)
+	ok, _ := filter.Remove([]byte("foo"))
+	if !ok {
+		t.Error("should be able to remove as e1 is in the filter")
+	}
+	ok, _ = filter.Remove([]byte("foo"))
+	if ok {
+		t.Error("shouldn't be able to remove as e1 isn't in the filter")
+	}
+}
+
 func initMockRedis() {
 	mr, _ := miniredis.Run()
 	redisUri := "redis://" + mr.Addr()
