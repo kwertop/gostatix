@@ -59,7 +59,7 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 		var items []Entry
 		for i := uint64(0); i < cuckooFilter.retries; i++ {
 			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.buckets[indexKey].Length()-1)))
-			prevFingerPrint, _ := cuckooFilter.buckets[indexKey].At(index)
+			prevFingerPrint, _ := cuckooFilter.buckets[indexKey].At(randIndex)
 			items = append(items, Entry{prevFingerPrint, index, randIndex})
 			cuckooFilter.buckets[indexKey].Set(randIndex, currFingerPrint)
 			hash := getHash([]byte(prevFingerPrint))
@@ -72,7 +72,7 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 			}
 		}
 		if !destructive {
-			for i := len(items); i >= 0; i-- {
+			for i := len(items) - 1; i >= 0; i-- {
 				item := items[i]
 				firstIndexKey := "cuckoo_" + cuckooFilter.key + "_bucket_" + strconv.FormatUint(item.firstIndex, 10)
 				cuckooFilter.buckets[firstIndexKey].Set(item.secondIndex, item.fingerPrint)
@@ -151,26 +151,25 @@ func (filter *CuckooFilterRedis) initBuckets() error {
 		local key = KEYS[1]
 		local size = ARGV[1]
 		local bucketSize = ARGV[2]
-		local bucketKeys = ARGV[3]
 		redis.call("DEL", key)
-		for i=1, size do
-			redis.call("LPUSH", key, bucketKeys[i-1])
+		for i=2, tonumber(size)+1 do
+			redis.call("LPUSH", key, KEYS[i])
 		end
-		for i=1, size do
-			local bucketKey = bucketKeys[i-1]
-			for j=1, bucketSize do
+		for i=2, tonumber(size)+1 do
+			local bucketKey = KEYS[i]
+			for j=1, tonumber(bucketSize) do
 				redis.call("LPUSH", bucketKey, "")
 			end
 		end
+		return true
 	`)
 	_, err := initCuckooFilterRedis.Run(
 		context.Background(),
 		gostatix.GetRedisClient(),
-		[]string{filter.key},
+		append([]string{filter.key}, bucketKeys...),
 		filter.size,
 		filter.bucketSize,
-		bucketKeys,
-	).Result()
+	).Bool()
 	if err != nil {
 		return fmt.Errorf("error while init buckets in redis, error: %v", err)
 	}
