@@ -50,7 +50,7 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 		var items []Entry
 		for i := uint64(0); i < cuckooFilter.retries; i++ {
 			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.buckets[index].Length()-1)))
-			prevFingerPrint := cuckooFilter.buckets[index].At(index)
+			prevFingerPrint := cuckooFilter.buckets[index].At(randIndex)
 			items = append(items, Entry{prevFingerPrint, index, randIndex})
 			cuckooFilter.buckets[index].Set(randIndex, currFingerPrint)
 			hash := getHash([]byte(prevFingerPrint))
@@ -107,27 +107,39 @@ func (aFilter CuckooFilter) Equals(bFilter CuckooFilter) bool {
 	return true
 }
 
+type bucketMemJSON struct {
+	Size     uint64   `json:"s"`
+	Length   uint64   `json:"l"`
+	Elements []string `json:"e"`
+}
+
 type cuckooFilterMemJSON struct {
-	Size              uint64              `json:"s"`
-	BucketSize        uint64              `json:"bs"`
-	FingerPrintLength uint64              `json:"fpl"`
-	Length            uint64              `json:"l"`
-	Retries           uint64              `json:"r"`
-	Buckets           []buckets.BucketMem `json:"b"`
+	Size              uint64          `json:"s"`
+	BucketSize        uint64          `json:"bs"`
+	FingerPrintLength uint64          `json:"fpl"`
+	Length            uint64          `json:"l"`
+	Retries           uint64          `json:"r"`
+	Buckets           []bucketMemJSON `json:"b"`
 }
 
 func (cuckooFilter CuckooFilter) Export() ([]byte, error) {
+	bucketsJSON := make([]bucketMemJSON, cuckooFilter.size)
+	for i := range cuckooFilter.buckets {
+		bucket := cuckooFilter.buckets[i]
+		bucketJSON := bucketMemJSON{bucket.Size(), bucket.Length(), bucket.Elements()}
+		bucketsJSON[i] = bucketJSON
+	}
 	return json.Marshal(cuckooFilterMemJSON{
 		cuckooFilter.size,
 		cuckooFilter.bucketSize,
 		cuckooFilter.fingerPrintLength,
 		cuckooFilter.length,
 		cuckooFilter.retries,
-		cuckooFilter.buckets,
+		bucketsJSON,
 	})
 }
 
-func (cuckooFilter CuckooFilter) Import(data []byte) error {
+func (cuckooFilter *CuckooFilter) Import(data []byte) error {
 	var f cuckooFilterMemJSON
 	err := json.Unmarshal(data, &f)
 	if err != nil {
@@ -138,6 +150,15 @@ func (cuckooFilter CuckooFilter) Import(data []byte) error {
 	cuckooFilter.fingerPrintLength = f.FingerPrintLength
 	cuckooFilter.length = f.Length
 	cuckooFilter.retries = f.Retries
-	cuckooFilter.buckets = f.Buckets
+	filters := make([]buckets.BucketMem, f.Size)
+	for i := range f.Buckets {
+		bucketJSON := f.Buckets[i]
+		bucket := *buckets.NewBucketMem(f.BucketSize)
+		for j := range bucketJSON.Elements {
+			bucket.Add(bucketJSON.Elements[j])
+		}
+		filters[i] = bucket
+	}
+	cuckooFilter.buckets = filters
 	return nil
 }

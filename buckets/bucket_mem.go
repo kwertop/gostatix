@@ -12,6 +12,10 @@ func NewBucketMem(size uint64) *BucketMem {
 	return &BucketMem{make([]string, size), bucket}
 }
 
+func (bucket BucketMem) Elements() []string {
+	return bucket.elements
+}
+
 func (bucket BucketMem) NextSlot() int64 {
 	return bucket.indexOf("")
 }
