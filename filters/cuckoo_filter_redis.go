@@ -92,6 +92,9 @@ func (cuckooFilter *CuckooFilterRedis) Lookup(data []byte) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while lookup of data: %v", err)
 	}
+	if isAtFirstIndex {
+		return isAtFirstIndex, nil
+	}
 	isAtSecondIndex, err := cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while lookup of data: %v", err)
