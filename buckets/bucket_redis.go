@@ -74,11 +74,12 @@ func (bucket *BucketRedis) Remove(element string) (bool, error) {
 
 func (bucket BucketRedis) Lookup(element string) (bool, error) {
 	lPosArgs := redis.LPosArgs{Rank: 1, MaxLen: 0}
-	pos, err := gostatix.GetRedisClient().LPos(context.Background(), bucket.key, element, lPosArgs).Result()
-	if err != nil {
+	pos, err := gostatix.GetRedisClient().LPos(context.Background(), bucket.key, element, lPosArgs).Uint64()
+	if err == nil || err.Error() == "redis: nil" {
+		return pos > 0, nil
+	} else {
 		return false, fmt.Errorf("gostatix: error while searching for %s, error: %v", element, err)
 	}
-	return pos > -1, nil
 }
 
 func (bucket BucketRedis) Set(index uint64, element string) error {
