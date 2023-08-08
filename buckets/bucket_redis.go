@@ -20,6 +20,14 @@ func NewBucketRedis(key string, size uint64) *BucketRedis {
 	return &BucketRedis{key, bucket}
 }
 
+func (bucket BucketRedis) Elements() ([]string, error) {
+	elements, err := gostatix.GetRedisClient().LRange(context.Background(), bucket.key, 0, -1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error while fetching list values from redis, key: %s, error: %v", bucket.key, err)
+	}
+	return elements, nil
+}
+
 func (bucket BucketRedis) NextSlot() (int64, error) {
 	lPosArgs := redis.LPosArgs{Rank: 1, MaxLen: 0}
 	pos, err := gostatix.GetRedisClient().LPos(context.Background(), bucket.key, "", lPosArgs).Result()

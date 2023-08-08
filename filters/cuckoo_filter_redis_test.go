@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -143,6 +144,150 @@ func TestRemovePresentCuckooRedis(t *testing.T) {
 	ok, _ = filter.Remove([]byte("foo"))
 	if ok {
 		t.Error("shouldn't be able to remove as e1 isn't in the filter")
+	}
+}
+
+func TestRemoveNotPresentCuckooRedis(t *testing.T) {
+	initMockRedis()
+	filter, _ := NewCuckooFilterRedisWithErrorRate(20, 4, 500, 0.01)
+	e1 := []byte("foo")
+	filter.Insert(e1, false)
+	ok, _ := filter.Remove([]byte("bar"))
+	if ok {
+		t.Error("shouldn't be able to remove as \"bar\" isn't in the filter")
+	}
+}
+
+func TestRollbackWhenFullCuckooRedis(t *testing.T) {
+	initMockRedis()
+	filter, _ := NewCuckooFilterRedis(5, 1, 3)
+	ok := filter.Insert([]byte("one"), false)
+	if !ok {
+		t.Error("should insert one")
+	}
+	ok = filter.Insert([]byte("two"), false)
+	if !ok {
+		t.Error("should insert two")
+	}
+	ok = filter.Insert([]byte("three"), false)
+	if !ok {
+		t.Error("should insert three")
+	}
+	ok = filter.Insert([]byte("four"), false)
+	if !ok {
+		t.Error("should insert four")
+	}
+	ok = filter.Insert([]byte("five"), false)
+	if !ok {
+		t.Error("should insert five")
+	}
+	snapshot1, _ := filter.Export()
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("filter should be full, and panic should occur")
+		}
+		snapshot2, _ := filter.Export()
+		if !reflect.DeepEqual(snapshot1, snapshot2) {
+			t.Error("snapshot1 and snapshot2 should be equal")
+		}
+	}()
+
+	ok = filter.Insert([]byte("six"), false)
+	if !ok {
+		t.Error("should insert six")
+	}
+}
+
+func TestNoRollbackWhenFullCuckooRedis(t *testing.T) {
+	initMockRedis()
+	filter, _ := NewCuckooFilterRedis(5, 1, 3)
+	ok := filter.Insert([]byte("one"), false)
+	if !ok {
+		t.Error("should insert one")
+	}
+	ok = filter.Insert([]byte("two"), false)
+	if !ok {
+		t.Error("should insert two")
+	}
+	ok = filter.Insert([]byte("three"), false)
+	if !ok {
+		t.Error("should insert three")
+	}
+	ok = filter.Insert([]byte("four"), false)
+	if !ok {
+		t.Error("should insert four")
+	}
+	ok = filter.Insert([]byte("five"), false)
+	if !ok {
+		t.Error("should insert five")
+	}
+	snapshot1, _ := filter.Export()
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("filter should be full, and panic should occur")
+		}
+		snapshot2, _ := filter.Export()
+		if reflect.DeepEqual(snapshot1, snapshot2) {
+			t.Error("snapshot1 and snapshot2 shouldn't be equal")
+		}
+	}()
+
+	ok = filter.Insert([]byte("six"), true)
+	if !ok {
+		t.Error("should insert six")
+	}
+}
+
+func TestCuckooImportInvalidJSONCuckooRedis(t *testing.T) {
+	data := []byte("{invalid}")
+
+	var g CuckooFilterRedis
+	err := g.Import(data, false)
+	if err == nil {
+		t.Error("expected error while unmarshalling invalid data")
+	}
+}
+
+func TestCuckooEqualsCuckooRedis(t *testing.T) {
+	initMockRedis()
+	filter1, _ := NewCuckooFilterRedis(5, 1, 3)
+	filter1.Insert([]byte("one"), false)
+	filter1.Insert([]byte("two"), false)
+	filter1.Insert([]byte("three"), false)
+	filter2, _ := NewCuckooFilterRedis(5, 1, 3)
+	filter2.Insert([]byte("one"), false)
+	filter2.Insert([]byte("two"), false)
+	filter2.Insert([]byte("three"), false)
+	if ok, _ := filter1.Equals(*filter2); !ok {
+		t.Error("filter1 and filter2 should be same")
+	}
+}
+
+func TestCuckooMarshalUnmarshalCuckooRedis(t *testing.T) {
+	initMockRedis()
+	filter1, _ := NewCuckooFilterRedis(5, 1, 3)
+	filter1.Insert([]byte("one"), false)
+	filter1.Insert([]byte("two"), false)
+	filter1.Insert([]byte("three"), false)
+	filter1.Insert([]byte("four"), false)
+	snapshot, _ := filter1.Export()
+	filter2, _ := NewCuckooFilterRedis(0, 0, 0)
+	filter2.Import(snapshot, true)
+	ok, _ := filter2.Lookup([]byte("one"))
+	if !ok {
+		t.Error("\"one\" should be in filter3")
+	}
+	ok, _ = filter2.Lookup([]byte("five"))
+	if ok {
+		t.Error("\"five\" should not be in filter3")
+	}
+	ok, _ = filter1.Equals(*filter2)
+	if !ok {
+		t.Errorf("filter1 and filter2 should be same")
 	}
 }
 

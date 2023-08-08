@@ -2,6 +2,7 @@ package filters
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
@@ -125,6 +126,74 @@ func (cuckooFilter *CuckooFilterRedis) Remove(data []byte) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+type bucketRedisJSON struct {
+	Size     uint64   `json:"s"`
+	Length   uint64   `json:"l"`
+	Elements []string `json:"e"`
+	Key      string   `json:"k"`
+}
+
+type cuckooFilterRedisJSON struct {
+	Size              uint64            `json:"s"`
+	BucketSize        uint64            `json:"bs"`
+	FingerPrintLength uint64            `json:"fpl"`
+	Length            uint64            `json:"l"`
+	Retries           uint64            `json:"r"`
+	Buckets           []bucketRedisJSON `json:"b"`
+	Key               string            `json:"k"`
+}
+
+func (filter CuckooFilterRedis) Export() ([]byte, error) {
+	bucketsJSON := make([]bucketRedisJSON, filter.size)
+	for i := uint64(0); i < filter.size; i++ {
+		bucketKey := filter.getIndexKey(i)
+		bucket := filter.buckets[bucketKey]
+		elements, _ := bucket.Elements()
+		bucketJSON := bucketRedisJSON{bucket.Size(), bucket.Length(), elements, bucketKey}
+		bucketsJSON[i] = bucketJSON
+	}
+	return json.Marshal(cuckooFilterRedisJSON{
+		filter.size,
+		filter.bucketSize,
+		filter.fingerPrintLength,
+		filter.length,
+		filter.retries,
+		bucketsJSON,
+		filter.key,
+	})
+}
+
+func (filter *CuckooFilterRedis) Import(data []byte, withNewRedisKey bool) error {
+	var f cuckooFilterRedisJSON
+	err := json.Unmarshal(data, &f)
+	if err != nil {
+		return fmt.Errorf("gostatix: error importing data, error %v", err)
+	}
+	filter.size = f.Size
+	filter.bucketSize = f.BucketSize
+	filter.fingerPrintLength = f.FingerPrintLength
+	filter.length = f.Length
+	filter.retries = f.Retries
+	if withNewRedisKey {
+		filter.key = gostatix.GenerateRandomString(16)
+	} else {
+		filter.key = f.Key
+	}
+	filter.initBuckets()
+	filters := make(map[string]*buckets.BucketRedis, f.Size)
+	for i := range f.Buckets {
+		bucketJSON := f.Buckets[i]
+		bucketKey := filter.getIndexKey(uint64(i))
+		bucket := buckets.NewBucketRedis(bucketKey, f.BucketSize)
+		for j := range bucketJSON.Elements {
+			bucket.Add(bucketJSON.Elements[j])
+		}
+		filters[bucketKey] = bucket
+	}
+	filter.buckets = filters
+	return nil
 }
 
 func (aFilter CuckooFilterRedis) Equals(bFilter CuckooFilterRedis) (bool, error) {
