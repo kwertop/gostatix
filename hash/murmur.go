@@ -77,9 +77,7 @@ func (d *digest128) Sum128(tail []byte, dlen uint) (h1, h2 uint64) {
 		k2 = bits.RotateLeft64(k2, 33)
 		k2 *= c1_128
 		h2 ^= k2
-
 		fallthrough
-
 	case 8:
 		k1 ^= uint64(tail[7]) << 56
 		fallthrough
