@@ -34,6 +34,10 @@ func NewCountMinSketchRedisFromEsitmates(errorRate, accuracy float64) (*CountMin
 	return NewCountMinSketch(rows, columns)
 }
 
+func (cms *CountMinSketchRedis) UpdateOnce(data []byte) {
+	cms.Update(data, 1)
+}
+
 func (cms *CountMinSketchRedis) Update(data []byte, count uint64) error {
 	updateLists := redis.NewScript(`
 		local size = ARGV[1]

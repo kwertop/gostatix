@@ -9,6 +9,7 @@ type BaseCountMinSketch interface {
 	UpdateString(data string, count uint64)
 	Count(data []byte) uint64
 	CountString(data string) uint64
+	UpdateOnce(data []byte)
 }
 
 type AbstractCountMinSketch struct {
@@ -35,10 +36,10 @@ func (cms *AbstractCountMinSketch) GetColumns() uint {
 }
 
 func (cms AbstractCountMinSketch) getPositions(data []byte) []uint {
-	positions := make([]uint, cms.columns)
+	positions := make([]uint, cms.rows)
 	hash1, hash2 := hash.Sum128(data)
 	for c := range positions {
-		positions[c] = uint((hash1 + uint64(c)*hash2) % uint64(cms.rows))
+		positions[c] = uint((hash1 + uint64(c)*hash2) % uint64(cms.columns))
 	}
 	return positions
 }

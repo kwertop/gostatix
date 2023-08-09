@@ -2,7 +2,7 @@ package count
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"math"
 )
 
@@ -13,7 +13,7 @@ type CountMinSketch struct {
 
 func NewCountMinSketch(rows, columns uint) (*CountMinSketch, error) {
 	if rows <= 0 || columns <= 0 {
-		return nil, errors.New("gostatix: rows and columns size should be greater than 0")
+		return nil, fmt.Errorf("gostatix: rows and columns size should be greater than 0")
 	}
 	abstractSketch := MakeAbstractCountMinSketch(rows, columns, 0)
 	matrix := make([][]uint64, rows)
@@ -24,10 +24,29 @@ func NewCountMinSketch(rows, columns uint) (*CountMinSketch, error) {
 	return sketch, nil
 }
 
-func NewCountMinSketchFromEsitmates(errorRate, accuracy float64) (*CountMinSketch, error) {
+func NewCountMinSketchFromEsitmates(errorRate, delta float64) (*CountMinSketch, error) {
 	columns := uint(math.Ceil(math.E / errorRate))
-	rows := uint(math.Ceil(math.Log(1 / accuracy)))
+	rows := uint(math.Ceil(math.Log(1 / delta)))
 	return NewCountMinSketch(rows, columns)
+}
+
+func (cms *CountMinSketch) UpdateOnce(data []byte) {
+	cms.Update(data, 1)
+}
+
+func (cms *CountMinSketch) Merge(cms1 *CountMinSketch) error {
+	if cms.rows != cms1.rows {
+		return fmt.Errorf("gostatix: can't merge sketches with unequal row counts, %d and %d", cms.rows, cms1.rows)
+	}
+	if cms.columns != cms1.columns {
+		return fmt.Errorf("gostatix: can't merge sketches with unequal column counts, %d and %d", cms.columns, cms1.columns)
+	}
+	for i := range cms.matrix {
+		for j := range cms.matrix[i] {
+			cms.matrix[i][j] += cms1.matrix[i][j]
+		}
+	}
+	return nil
 }
 
 func (cms *CountMinSketch) Update(data []byte, count uint64) {
@@ -77,4 +96,18 @@ func (cms *CountMinSketch) Import(data []byte) error {
 	cms.allSum = s.AllSum
 	cms.matrix = s.Matrix
 	return nil
+}
+
+func (cms *CountMinSketch) Equals(cms1 *CountMinSketch) bool {
+	if cms.rows != cms1.rows && cms.columns != cms1.columns {
+		return false
+	}
+	for i := range cms.matrix {
+		for j := range cms.matrix[i] {
+			if cms.matrix[i][j] != cms1.matrix[i][j] {
+				return false
+			}
+		}
+	}
+	return true
 }
