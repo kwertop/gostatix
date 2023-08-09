@@ -40,6 +40,10 @@ func NewCuckooFilterRedisWithErrorRate(size, bucketSize, retries uint64, errorRa
 	return NewCuckooFilterRedisWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }
 
+func (cuckooFilter CuckooFilterRedis) Key() string {
+	return cuckooFilter.key
+}
+
 func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) bool {
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
