@@ -42,12 +42,13 @@ func (cms *CountMinSketchRedis) Update(data []byte, count uint64) error {
 	updateLists := redis.NewScript(`
 		local size = ARGV[1]
 		local cmsKey = ARGV[2]
+		local count = tonumber(ARGV[3])
 		for i=1, tonumber(size)-1, 2 do
 			local row = cmsKey .. KEYS[i]
 			local column = tonumber(KEYS[i+1])
-			local val = redis.call('LINDEX, row, column)
+			local val = redis.call('LINDEX', row, column)
 			val = tonumber(val) + count
-			redis.pcall('LSET', row, columns, val)
+			redis.pcall('LSET', row, column, val)
 		end
 		return true
 	`)
@@ -61,6 +62,7 @@ func (cms *CountMinSketchRedis) Update(data []byte, count uint64) error {
 		updateRedisKeys,
 		len(updateRedisKeys),
 		cms.key,
+		count,
 	).Bool()
 	if err != nil {
 		return fmt.Errorf("gostatix: error while updating data %v in redis, error: %v", data, err)
@@ -81,9 +83,10 @@ func (cms *CountMinSketchRedis) Count(data []byte) (uint64, error) {
 		for i=1, tonumber(size)-1, 2 do
 			local row = cmsKey .. KEYS[i]
 			local column = tonumber(KEYS[i+1])
-			local val = redis.call('LINDEX, row, column)
-			if val < min then
-				val = min
+			local val = redis.call('LINDEX', row, column)
+			local count = tonumber(val)
+			if count < min or tonumber(KEYS[i]) == 0 then
+				min = count
 			end
 		end
 		return min
@@ -109,29 +112,73 @@ func (cms *CountMinSketchRedis) CountString(data string) (uint64, error) {
 	return cms.Count([]byte(data))
 }
 
+func (cms *CountMinSketchRedis) Merge(cms1 *CountMinSketchRedis) error {
+	if cms.rows != cms1.rows {
+		return fmt.Errorf("gostatix: can't merge sketches with unequal row counts, %d and %d", cms.rows, cms1.rows)
+	}
+	if cms.columns != cms1.columns {
+		return fmt.Errorf("gostatix: can't merge sketches with unequal column counts, %d and %d", cms.columns, cms1.columns)
+	}
+	return cms.mergeMatrix(cms1.key)
+}
+
+func (cms *CountMinSketchRedis) mergeMatrix(key string) error {
+	mergeMatrixScript := redis.NewScript(`
+		local key1 = KEYS[1]
+		local key2 = KEYS[2]
+		local rows = tonumber(ARGV[1])
+		local columns = tonumber(ARGV[2])
+		for i=1, tonumber(rows) do
+			local rowKey1 = key1 .. tostring(i-1)
+			local vals1 = redis.call('LRANGE', rowKey1, 0, -1)
+			local rowKey2 = key2 .. tostring(i-1)
+			local vals2 = redis.call('LRANGE', rowKey2, 0, -1)
+			local vals3 = {}
+			for j=1, tonumber(columns) do
+				vals3[j] = tonumber(vals1[j]) + tonumber(vals2[j])
+			end
+			redis.call('DEL', rowKey1)
+			redis.call('RPUSH', rowKey1, unpack(vals3))
+		end
+		return true
+	`)
+	ok, err := mergeMatrixScript.Run(
+		context.Background(),
+		gostatix.GetRedisClient(),
+		[]string{cms.key, key},
+		cms.rows,
+		cms.columns,
+	).Bool()
+	if err != nil || !ok {
+		return errors.New("gostatix: error while merging matrix in redis")
+	}
+	return nil
+}
+
 func (cms CountMinSketchRedis) initMatrix() error {
 	rowKeys := make([]string, cms.rows)
 	for i := range rowKeys {
 		rowKeys[i] = cms.key + "_" + strconv.FormatInt(int64(i), 10)
 	}
 	initMatrixRedis := redis.NewScript(`
+		local key = KEYS[1]
 		local rows = ARGV[1]
 		local columns = ARGV[2]
 		for i=1, tonumber(rows) do
-			local rowKey = KEYS[i]
+			local rowKey = key .. tostring(i-1)
 			redis.call('DEL', rowKey)
 			local list = {}
 			for j=1, tonumber(columns) do
 				list[j] = 0
 			end
-			redis.call('LPUSH', rowKey, list)
+			redis.call('LPUSH', rowKey, unpack(list))
 		end
 		return true
 	`)
 	ok, err := initMatrixRedis.Run(
 		context.Background(),
 		gostatix.GetRedisClient(),
-		rowKeys,
+		[]string{cms.key},
 		cms.rows,
 		cms.columns,
 	).Bool()
