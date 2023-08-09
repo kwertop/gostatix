@@ -2,7 +2,9 @@ package count
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/kwertop/gostatix"
 	"github.com/redis/go-redis/v9"
@@ -52,6 +54,60 @@ func (h *HyperLogLogRedis) Merge(g *HyperLogLogRedis) error {
 		return fmt.Errorf("gostatix: number of registers %d, %d don't match", h.numRegisters, g.numRegisters)
 	}
 	return h.mergeRegisters(g.key)
+}
+
+func (h *HyperLogLogRedis) Export() ([]byte, error) {
+	result, err := gostatix.GetRedisClient().LRange(
+		context.Background(),
+		h.key,
+		0,
+		-1,
+	).Result()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error fetching registers from redis, error: %v", err)
+	}
+	registers := make([]uint8, h.numRegisters)
+	for i := range registers {
+		val, _ := strconv.Atoi(result[i])
+		registers[i] = uint8(val)
+	}
+	return json.Marshal(hyperLogLogJSON{h.numRegisters, h.numBytesPerHash, h.correctionBias, registers, h.key})
+}
+
+func (h *HyperLogLogRedis) Import(data []byte, withNewKey bool) error {
+	var g hyperLogLogJSON
+	err := json.Unmarshal(data, &g)
+	if err != nil {
+		return err
+	}
+	h.numRegisters = g.NumRegisters
+	h.numBytesPerHash = g.NumBytesPerHash
+	h.correctionBias = g.CorrectionBias
+	if withNewKey {
+		h.key = gostatix.GenerateRandomString(16)
+	} else {
+		h.key = g.Key
+	}
+	return h.importRegisters(g.Registers)
+}
+
+func (h *HyperLogLogRedis) importRegisters(registers []uint8) error {
+	importRegistersScript := redis.NewScript(`
+		local key = KEYS[1]
+		local registers = ARGV[1]
+		redis.call('LPUSH', key, registers)
+		return true
+	`)
+	_, err := importRegistersScript.Run(
+		context.Background(),
+		gostatix.GetRedisClient(),
+		[]string{h.key},
+		registers,
+	).Bool()
+	if err != nil {
+		return fmt.Errorf("gostatix: error importing registers for key: %s, error: %v", h.key, err)
+	}
+	return nil
 }
 
 func (h *HyperLogLogRedis) mergeRegisters(key string) error {

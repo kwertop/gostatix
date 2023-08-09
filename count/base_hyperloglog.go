@@ -23,6 +23,14 @@ type AbstractHyperLogLog struct {
 	correctionBias  float64
 }
 
+type hyperLogLogJSON struct {
+	NumRegisters    uint64  `json:"nr"`
+	NumBytesPerHash uint64  `json:"nbp"`
+	CorrectionBias  float64 `json:"c"`
+	Registers       []uint8 `json:"r"`
+	Key             string  `json:"k"`
+}
+
 func MakeAbstractHyperLogLog(numRegisters uint64) (*AbstractHyperLogLog, error) {
 	if numRegisters == 0 {
 		panic("gostatix: hyperloglog number of registers can't be zero")

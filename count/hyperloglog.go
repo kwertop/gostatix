@@ -1,6 +1,7 @@
 package count
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -61,4 +62,21 @@ func (h *HyperLogLog) Equals(g *HyperLogLog) bool {
 		}
 	}
 	return true
+}
+
+func (h *HyperLogLog) Export() ([]byte, error) {
+	return json.Marshal(hyperLogLogJSON{h.numRegisters, h.numBytesPerHash, h.correctionBias, h.registers, ""})
+}
+
+func (h *HyperLogLog) Import(data []byte) error {
+	var g hyperLogLogJSON
+	err := json.Unmarshal(data, &g)
+	if err != nil {
+		return err
+	}
+	h.numRegisters = g.NumRegisters
+	h.numBytesPerHash = g.NumBytesPerHash
+	h.correctionBias = g.CorrectionBias
+	h.registers = g.Registers
+	return nil
 }
