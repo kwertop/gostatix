@@ -10,24 +10,17 @@ import (
 )
 
 type HyperLogLog struct {
-	numRegisters    uint64
-	numBytesPerHash uint64
-	correctionBias  float64
-	registers       []uint8
+	AbstractHyperLogLog
+	registers []uint8
 }
 
 func NewHyperLogLog(numRegisters uint64) (*HyperLogLog, error) {
-	if numRegisters == 0 {
-		panic("gostatix: hyperloglog number of registers can't be zero")
+	registers := make([]uint8, numRegisters)
+	abstractLog, err := MakeAbstractHyperLogLog(numRegisters)
+	if err != nil {
+		return nil, err
 	}
-	if numRegisters&(numRegisters-1) != 0 {
-		return nil, fmt.Errorf("gostatix: hyperloglog number of registers %d not a power of two", numRegisters)
-	}
-	h := &HyperLogLog{}
-	h.numRegisters = numRegisters
-	h.numBytesPerHash = uint64(math.Log2(float64(numRegisters)))
-	h.correctionBias = getAlpha(uint(numRegisters))
-	h.registers = make([]uint8, numRegisters)
+	h := &HyperLogLog{*abstractLog, registers}
 	return h, nil
 }
 
@@ -35,10 +28,6 @@ func (h *HyperLogLog) Reset() {
 	for i := range h.registers {
 		h.registers[i] = 0
 	}
-}
-
-func (h *HyperLogLog) NumRegisters() uint64 {
-	return h.numRegisters
 }
 
 func (h *HyperLogLog) Update(data []byte) {
@@ -70,10 +59,6 @@ func (h *HyperLogLog) Count(withCorrection bool, withRoundingOff bool) uint64 {
 	return uint64(estimation)
 }
 
-func (h *HyperLogLog) Accuracy() float64 {
-	return 1.04 / math.Sqrt(float64(h.numRegisters))
-}
-
 func (h *HyperLogLog) Merge(g *HyperLogLog) error {
 	if h.numRegisters != g.numRegisters {
 		return fmt.Errorf("gostatix: number of registers %d, %d don't match", h.numRegisters, g.numRegisters)
@@ -94,18 +79,4 @@ func (h *HyperLogLog) Equals(g *HyperLogLog) bool {
 		}
 	}
 	return true
-}
-
-func getAlpha(m uint) (result float64) {
-	switch m {
-	case 16:
-		result = 0.673
-	case 32:
-		result = 0.697
-	case 64:
-		result = 0.709
-	default:
-		result = 0.7213 / (1.0 + 1.079/float64(m))
-	}
-	return result
 }
