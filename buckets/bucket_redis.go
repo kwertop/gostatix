@@ -128,10 +128,10 @@ func (bucket *BucketRedis) Equals(otherBucket *BucketRedis) (bool, error) {
 		local key1 = KEYS[1]
 		local key2 = KEYS[2]
 		local size = ARGV[1]
+		local vals1 = redis.pcall('LRANGE', key1, 0, -1)
+		local vals2 = redis.pcall('LRANGE', key2, 0, -1)
 		for i=1, tonumber(size) do
-			local val1 = redis.pcall("LINDEX", key1, i)
-			local val2 = redis.pcall("LINDEX", key2, i)
-			if val1 ~= val2 then
+			if vals1[i] ~= vals2[i] then
 				return false
 			end
 		end
