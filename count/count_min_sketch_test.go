@@ -8,7 +8,7 @@ import (
 const delta = 0.999
 
 func TestCountMinSketchBasic(t *testing.T) {
-	cms, _ := NewCountMinSketchFromEsitmates(0.001, delta)
+	cms, _ := NewCountMinSketchFromEstimates(0.001, delta)
 	e1 := []byte("foo")
 	e2 := []byte("bar")
 	e3 := []byte("baz")
@@ -30,8 +30,8 @@ func TestCountMinSketchBasic(t *testing.T) {
 }
 
 func TestCountMinSketchMerge(t *testing.T) {
-	cms1, _ := NewCountMinSketchFromEsitmates(0.001, delta)
-	cms2, _ := NewCountMinSketchFromEsitmates(0.001, delta)
+	cms1, _ := NewCountMinSketchFromEstimates(0.001, delta)
+	cms2, _ := NewCountMinSketchFromEstimates(0.001, delta)
 
 	cms1.UpdateString("foo", 1)
 	cms1.UpdateString("foo", 1)
@@ -65,8 +65,8 @@ func TestCountMinSketchMerge(t *testing.T) {
 }
 
 func TestCountMinSketchMergeError(t *testing.T) {
-	cms1, _ := NewCountMinSketchFromEsitmates(0.01, delta)
-	cms2, _ := NewCountMinSketchFromEsitmates(0.0001, delta)
+	cms1, _ := NewCountMinSketchFromEstimates(0.01, delta)
+	cms2, _ := NewCountMinSketchFromEstimates(0.0001, delta)
 
 	cms1.UpdateString("foo", 1)
 	cms1.UpdateString("foo", 1)
@@ -86,14 +86,14 @@ func TestCountMinSketchMergeError(t *testing.T) {
 }
 
 func TestCountMinSketchImportExport(t *testing.T) {
-	cms1, _ := NewCountMinSketchFromEsitmates(0.001, delta)
+	cms1, _ := NewCountMinSketchFromEstimates(0.001, delta)
 
 	cms1.UpdateString("foo", 1)
 	cms1.UpdateString("foo", 1)
 	cms1.UpdateString("foo", 1)
 	cms1.UpdateString("baz", 1)
 
-	cms2, _ := NewCountMinSketchFromEsitmates(0.001, delta)
+	cms2, _ := NewCountMinSketchFromEstimates(0.001, delta)
 
 	cms2.UpdateString("foo", 1)
 	cms2.UpdateString("foo", 1)
@@ -107,7 +107,7 @@ func TestCountMinSketchImportExport(t *testing.T) {
 		t.Errorf("sketch1 and sketch2 should be equal")
 	}
 
-	cms3, _ := NewCountMinSketchFromEsitmates(0.001, delta)
+	cms3, _ := NewCountMinSketchFromEstimates(0.001, delta)
 	cms3.Import(sketch1)
 
 	if !cms1.Equals(cms3) {

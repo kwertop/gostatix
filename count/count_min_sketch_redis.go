@@ -28,10 +28,10 @@ func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 	return sketch, nil
 }
 
-func NewCountMinSketchRedisFromEsitmates(errorRate, accuracy float64) (*CountMinSketch, error) {
+func NewCountMinSketchRedisFromEstimates(errorRate, accuracy float64) (*CountMinSketchRedis, error) {
 	columns := uint(math.Ceil(math.E / errorRate))
 	rows := uint(math.Ceil(math.Log(1 / accuracy)))
-	return NewCountMinSketch(rows, columns)
+	return NewCountMinSketchRedis(rows, columns)
 }
 
 func (cms *CountMinSketchRedis) UpdateOnce(data []byte) {

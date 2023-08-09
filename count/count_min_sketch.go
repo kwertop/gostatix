@@ -24,7 +24,7 @@ func NewCountMinSketch(rows, columns uint) (*CountMinSketch, error) {
 	return sketch, nil
 }
 
-func NewCountMinSketchFromEsitmates(errorRate, delta float64) (*CountMinSketch, error) {
+func NewCountMinSketchFromEstimates(errorRate, delta float64) (*CountMinSketch, error) {
 	columns := uint(math.Ceil(math.E / errorRate))
 	rows := uint(math.Ceil(math.Log(1 / delta)))
 	return NewCountMinSketch(rows, columns)
