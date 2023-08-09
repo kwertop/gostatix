@@ -28,9 +28,9 @@ func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 	return sketch, nil
 }
 
-func NewCountMinSketchRedisFromEstimates(errorRate, accuracy float64) (*CountMinSketchRedis, error) {
+func NewCountMinSketchRedisFromEstimates(errorRate, delta float64) (*CountMinSketchRedis, error) {
 	columns := uint(math.Ceil(math.E / errorRate))
-	rows := uint(math.Ceil(math.Log(1 / accuracy)))
+	rows := uint(math.Ceil(math.Log(1 / delta)))
 	return NewCountMinSketchRedis(rows, columns)
 }
 
@@ -122,6 +122,45 @@ func (cms *CountMinSketchRedis) Merge(cms1 *CountMinSketchRedis) error {
 	return cms.mergeMatrix(cms1.key)
 }
 
+func (cms *CountMinSketchRedis) Equals(cms1 *CountMinSketchRedis) (bool, error) {
+	if cms.rows != cms1.rows || cms.columns != cms1.columns {
+		return false, nil
+	}
+	return cms.compareMatrix(cms1.key)
+}
+
+func (cms *CountMinSketchRedis) compareMatrix(key string) (bool, error) {
+	compareMatrixScript := redis.NewScript(`
+		local key1 = KEYS[1]
+		local key2 = KEYS[2]
+		local rows = tonumber(ARGV[1])
+		local columns = tonumber(ARGV[2])
+		for i=1, tonumber(rows) do
+			local rowKey1 = key1 .. tostring(i-1)
+			local vals1 = redis.pcall('LRANGE', rowKey1, 0, -1)
+			local rowKey2 = key2 .. tostring(i-1)
+			local vals2 = redis.pcall('LRANGE', rowKey2, 0, -1)
+			for j=1, tonumber(columns) do
+				if vals1[j] ~= vals2[j] then
+					return false
+				end
+			end
+		end
+		return true
+	`)
+	ok, err := compareMatrixScript.Run(
+		context.Background(),
+		gostatix.GetRedisClient(),
+		[]string{cms.key, key},
+		cms.rows,
+		cms.columns,
+	).Bool()
+	if err != nil || !ok {
+		return false, fmt.Errorf("gostatix: error while comparing matrix in redis")
+	}
+	return ok, nil
+}
+
 func (cms *CountMinSketchRedis) mergeMatrix(key string) error {
 	mergeMatrixScript := redis.NewScript(`
 		local key1 = KEYS[1]
@@ -193,9 +232,9 @@ func (cms *CountMinSketchRedis) getMatrix() ([][]uint64, error) {
 		local key = KEYS[1]
 		local size = ARGV[1]
 		local matrix = {}
-		for i=1, size do
+		for i=1, tonumber(size) do
 			matrix[i] = {}
-			local rowKey = key .. tostring(i)
+			local rowKey = key .. tostring(i-1)
 			local values = redis.call('LRANGE', rowKey, 0, -1)
 			for j, v in ipairs(values) do
 				matrix[i][j] = v
@@ -208,32 +247,61 @@ func (cms *CountMinSketchRedis) getMatrix() ([][]uint64, error) {
 		gostatix.GetRedisClient(),
 		[]string{cms.key},
 		cms.rows,
-	).Result()
+	).Slice()
 	if err != nil {
 		return nil, fmt.Errorf("gostatix: error fetching matrix from redis, error: %v", err)
 	}
-	matrix, ok := result.([][]uint64)
-	if ok {
-		return matrix, nil
-	} else {
-		return nil, fmt.Errorf("gostatix: error parsing matrix from redis")
+
+	matrix := make([][]uint64, len(result))
+	for i := range result {
+		rowSlice, ok := result[i].([]interface{})
+		matrix[i] = make([]uint64, len(rowSlice))
+		if ok {
+			for j := range rowSlice {
+				c, ok := rowSlice[j].(string)
+				if ok {
+					count, err := strconv.Atoi(c)
+					if err != nil {
+						return nil, fmt.Errorf("gostatix: error parsing matrix from redis, error: %v", err)
+					}
+					matrix[i][j] = uint64(count)
+				}
+			}
+		} else {
+			return nil, fmt.Errorf("gostatix: error parsing matrix from redis")
+		}
 	}
+	return matrix, nil
 }
 
 func (cms *CountMinSketchRedis) setMatrix(matrix [][]uint64) error {
-	fetchMatrixAsTable := redis.NewScript(`
+	flattenedMatrix := gostatix.Flatten(matrix)
+	args := make([]interface{}, len(flattenedMatrix)+1)
+	args[0] = interface{}(len(matrix[0]))
+	for i := range flattenedMatrix {
+		args[i+1] = interface{}(flattenedMatrix[i])
+	}
+	setMatrixScript := redis.NewScript(`
 		local key = KEYS[1]
-		for i,v in ipairs(ARGV) do
-			local rowKey = key .. tostring(i)
-			redis.call('LPUSH', rowKey, v)
+		local columns = tonumber(ARGV[1])
+		local index = 2
+		local rows = #ARGV / columns
+		for i=1, rows do
+			local row = {}
+			local rowKey = key .. tostring(i-1)
+			for j=1, columns do
+				row[j] = ARGV[index]
+				index = index + 1
+			end
+			redis.call('RPUSH', rowKey, unpack(row))
 		end
 		return true
 	`)
-	_, err := fetchMatrixAsTable.Run(
+	_, err := setMatrixScript.Run(
 		context.Background(),
 		gostatix.GetRedisClient(),
 		[]string{cms.key},
-		matrix,
+		args...,
 	).Result()
 	if err != nil {
 		return fmt.Errorf("gostatix: couldn't save matrix in redis")
@@ -254,10 +322,10 @@ func (cms *CountMinSketchRedis) Export() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(countMinSketchJSON{cms.rows, cms.columns, cms.allSum, matrix})
+	return json.Marshal(countMinSketchRedisJSON{cms.rows, cms.columns, cms.allSum, matrix, cms.key})
 }
 
-func (cms *CountMinSketchRedis) Import(data []byte) error {
+func (cms *CountMinSketchRedis) Import(data []byte, withNewKey bool) error {
 	var s countMinSketchRedisJSON
 	err := json.Unmarshal(data, &s)
 	if err != nil {
@@ -266,5 +334,10 @@ func (cms *CountMinSketchRedis) Import(data []byte) error {
 	cms.rows = s.Rows
 	cms.columns = s.Columns
 	cms.allSum = s.AllSum
+	if withNewKey {
+		cms.key = gostatix.GenerateRandomString(16)
+	} else {
+		cms.key = s.Key
+	}
 	return cms.setMatrix(s.Matrix)
 }

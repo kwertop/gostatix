@@ -66,6 +66,55 @@ func TestCountMinSketchRedisMerge(t *testing.T) {
 	}
 }
 
+func TestCountMinSketchRedisMergeError(t *testing.T) {
+	initMockRedis()
+	cms1, _ := NewCountMinSketchRedisFromEstimates(0.01, delta)
+	cms2, _ := NewCountMinSketchRedisFromEstimates(0.0001, delta)
+
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("baz", 1)
+
+	cms2.UpdateString("foo", 1)
+	cms2.UpdateString("bar", 1)
+	cms2.UpdateString("bar", 1)
+	cms2.UpdateString("baz", 1)
+
+	err := cms1.Merge(cms2)
+
+	if err == nil {
+		t.Errorf("it should error out as cms1 and cms2 are of different sizes")
+	}
+}
+
+func TestCountMinSketchRedisImportExport(t *testing.T) {
+	initMockRedis()
+	cms1, _ := NewCountMinSketchRedisFromEstimates(0.001, delta)
+
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("baz", 1)
+
+	cms2, _ := NewCountMinSketchRedisFromEstimates(0.001, delta)
+
+	cms2.UpdateString("foo", 1)
+	cms2.UpdateString("foo", 1)
+	cms2.UpdateString("foo", 1)
+	cms2.UpdateString("baz", 1)
+
+	sketch1, _ := cms1.Export()
+
+	cms3, _ := NewCountMinSketchRedisFromEstimates(0.001, delta)
+	cms3.Import(sketch1, true)
+
+	ok, _ := cms1.Equals(cms3)
+	if !ok {
+		t.Errorf("cms1 and cms3 should be equal")
+	}
+}
+
 func initMockRedis() {
 	mr, _ := miniredis.Run()
 	redisUri := "redis://" + mr.Addr()

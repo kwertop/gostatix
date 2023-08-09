@@ -63,6 +63,14 @@ func ConvertByteToLittleEndianByte(originalByte byte) byte {
 	return resultByte
 }
 
+func Flatten[T any](lists [][]T) []T {
+	var res []T
+	for _, list := range lists {
+		res = append(res, list...)
+	}
+	return res
+}
+
 func Max(a, b uint) uint {
 	if a > b {
 		return a
