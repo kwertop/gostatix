@@ -82,7 +82,7 @@ func (bucket *BucketRedis) Remove(element string) (bool, error) {
 
 func (bucket BucketRedis) Lookup(element string) (bool, error) {
 	//Redis returns nil if an element doesn't exist in the list
-	//While Golang Redis LPos command returns 0 for non-existent element inside the list
+	//While Golang Redis LPos command returns 0 for non-existent element inside the list with error set as "redis: nil"
 	//This becomes confusing for the index of the first element in the list and non-existent values
 	//below script handles the ambiguity
 	exists := redis.NewScript(`
