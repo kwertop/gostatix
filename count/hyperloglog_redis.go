@@ -187,7 +187,7 @@ func (h *HyperLogLogRedis) computeHarmonicMean() (float64, error) {
 	return hmean, nil
 }
 
-func (h *HyperLogLogRedis) updateRegisters(index, count int) error {
+func (h *HyperLogLogRedis) updateRegisters(index, count uint64) error {
 	updateList := redis.NewScript(`
 		local key = KEYS[1]
 		local index = tonumber(ARGV[1])

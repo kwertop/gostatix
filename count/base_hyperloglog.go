@@ -3,7 +3,7 @@ package count
 import (
 	"fmt"
 	"math"
-	"strconv"
+	"math/bits"
 
 	"github.com/kwertop/gostatix/hash"
 )
@@ -67,24 +67,19 @@ func getAlpha(m uint) (result float64) {
 	return result
 }
 
-func (h *AbstractHyperLogLog) getRegisterIndexAndCount(data []byte) (int, int) {
+func (h *AbstractHyperLogLog) getRegisterIndexAndCount(data []byte) (uint64, uint64) {
 	hash, _ := hash.Sum128(data)
-	hashString := strconv.FormatUint(hash, 10)
-	registerIndex, _ := strconv.Atoi(hashString[0:(h.numBytesPerHash - 1)])
-	registerIndex++
-	secondPart := hashString[h.numBytesPerHash:]
-	count := 0
-	for secondPart[count] != '1' && count < len(secondPart)-1 {
-		count++
-	}
-	return registerIndex, count
+	k := 32 - h.numBytesPerHash
+	registerIndex := 1 + bits.LeadingZeros64(hash<<h.numBytesPerHash)
+	count := hash >> uint(k)
+	return uint64(registerIndex), count
 }
 
 func (h *AbstractHyperLogLog) getEstimation(harmonicMean float64, withCorrection, withRoundingOff bool) uint64 {
 	estimation := (h.correctionBias * math.Pow(float64(h.numRegisters), 2)) / harmonicMean
-	towPow32 := math.Pow(2, 32)
-	if estimation > towPow32/30 && withCorrection {
-		estimation = -towPow32 * math.Log(1-estimation/towPow32)
+	twoPow32 := math.Pow(2, 32)
+	if estimation > twoPow32/30 && withCorrection {
+		estimation = -twoPow32 * math.Log(1-estimation/twoPow32)
 	}
 	if withRoundingOff {
 		estimation = math.Round(estimation)
