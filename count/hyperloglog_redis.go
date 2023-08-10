@@ -31,7 +31,7 @@ func NewHyperLogLogRedis(numRegisters uint64) (*HyperLogLogRedis, error) {
 
 func (h *HyperLogLogRedis) Update(data []byte) error {
 	registerIndex, count := h.getRegisterIndexAndCount(data)
-	return h.updateRegisters(registerIndex, count)
+	return h.updateRegisters(uint8(registerIndex), uint8(count))
 }
 
 func (h *HyperLogLogRedis) Count(withCorrection bool, withRoundingOff bool) (uint64, error) {
@@ -92,17 +92,25 @@ func (h *HyperLogLogRedis) Import(data []byte, withNewKey bool) error {
 }
 
 func (h *HyperLogLogRedis) importRegisters(registers []uint8) error {
+	args := make([]interface{}, len(registers))
+	for i := range registers {
+		args[i] = interface{}(registers[i])
+	}
 	importRegistersScript := redis.NewScript(`
 		local key = KEYS[1]
-		local registers = ARGV[1]
-		redis.call('LPUSH', key, registers)
+		local size = #ARGV
+		local registers = {}
+		for i=1, size do
+			registers[i] = tonumber(ARGV[i])
+		end
+		redis.call('RPUSH', key, unpack(registers))
 		return true
 	`)
 	_, err := importRegistersScript.Run(
 		context.Background(),
 		gostatix.GetRedisClient(),
 		[]string{h.key},
-		registers,
+		args...,
 	).Bool()
 	if err != nil {
 		return fmt.Errorf("gostatix: error importing registers for key: %s, error: %v", h.key, err)
@@ -118,11 +126,11 @@ func (h *HyperLogLogRedis) mergeRegisters(key string) error {
 		local vals1 = redis.pcall('LRANGE', key1, 0, -1)
 		local vals2 = redis.pcall('LRANGE', key2, 0, -1)
 		for i=1, tonumber(size) do
-			if vals1[i] < vals2[i] then
+			if tonumber(vals1[i]) < tonumber(vals2[i]) then
 				vals1[i] = vals2[i]
 			end
 		end
-		redis.pcall('LPUSH', key1, vals1)
+		redis.pcall('LPUSH', key1, unpack(vals1))
 		return true
 	`)
 	_, err := mergeRegistersScript.Run(
@@ -145,7 +153,7 @@ func (h *HyperLogLogRedis) compareRegisters(key string) (bool, error) {
 		local vals1 = redis.pcall('LRANGE', key1, 0, -1)
 		local vals2 = redis.pcall('LRANGE', key2, 0, -1)
 		for i=1, tonumber(size) do
-			if vals1[i] ~= vals2[i] then
+			if tonumber(vals1[i]) ~= tonumber(vals2[i]) then
 				return false
 			end
 		end
@@ -167,7 +175,7 @@ func (h *HyperLogLogRedis) computeHarmonicMean() (float64, error) {
 	harmonicMeanScript := redis.NewScript(`
 		local key = KEYS[1]
 		local size = ARGV[1]
-		local hmean = 0
+		local hmean = 0.0
 		local values = redis.pcall('LRANGE', key, 0, -1)
 		for i=1, tonumber(size) do
 			local value = (-1)*tonumber(values[i])
@@ -187,13 +195,13 @@ func (h *HyperLogLogRedis) computeHarmonicMean() (float64, error) {
 	return hmean, nil
 }
 
-func (h *HyperLogLogRedis) updateRegisters(index, count uint64) error {
+func (h *HyperLogLogRedis) updateRegisters(index, count uint8) error {
 	updateList := redis.NewScript(`
 		local key = KEYS[1]
 		local index = tonumber(ARGV[1])
 		local val = tonumber(ARGV[2])
 		local count = redis.call('LINDEX', key, index)
-		if val > count then
+		if val > tonumber(count) then
 			count = val
 		end
 		redis.call('LSET', key, index, count)
@@ -203,7 +211,8 @@ func (h *HyperLogLogRedis) updateRegisters(index, count uint64) error {
 		context.Background(),
 		gostatix.GetRedisClient(),
 		[]string{h.key},
-		h.numRegisters,
+		index,
+		count,
 	).Bool()
 	if err != nil {
 		return fmt.Errorf("gostatix: error while updating hyperloglog registers in redis, error: %v", err)
@@ -219,7 +228,7 @@ func (h *HyperLogLogRedis) initRegisters() error {
 		for i=1, tonumber(size) do
 			registers[i] = 0
 		end
-		redis.call('LPUSH', key, registers)
+		redis.call('LPUSH', key, unpack(registers))
 		return true
 	`)
 	_, err := initList.Run(
