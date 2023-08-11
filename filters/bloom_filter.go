@@ -1,13 +1,14 @@
 package filters
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math"
 
+	"github.com/dgryski/go-metro"
 	"github.com/kwertop/gostatix"
 	"github.com/kwertop/gostatix/bitset"
-	"github.com/kwertop/gostatix/hash"
 )
 
 type BloomFilter struct {
@@ -60,7 +61,8 @@ func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
 }
 
 func getHashes(data []byte) [2]uint64 {
-	hash1, hash2 := hash.Sum128(data)
+	prime, _ := rand.Prime(rand.Reader, 64)
+	hash1, hash2 := metro.Hash128(data, prime.Uint64())
 	return [2]uint64{hash1, hash2}
 }
 

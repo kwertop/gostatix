@@ -1,11 +1,12 @@
 package filters
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math"
 	"strconv"
 
-	"github.com/kwertop/gostatix/hash"
+	"github.com/dgryski/go-metro"
 )
 
 type Entry struct {
@@ -80,7 +81,8 @@ func (cuckooFilter *AbstractCuckooFilter) getPositions(data []byte) (string, uin
 }
 
 func getHash(data []byte) uint64 {
-	hash1, _ := hash.Sum128(data)
+	prime, _ := rand.Prime(rand.Reader, 64)
+	hash1, _ := metro.Hash128(data, prime.Uint64())
 	return hash1
 }
 

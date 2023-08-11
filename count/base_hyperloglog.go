@@ -1,11 +1,12 @@
 package count
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math"
 	"math/bits"
 
-	"github.com/kwertop/gostatix/hash"
+	"github.com/dgryski/go-metro"
 )
 
 type BaseHyperLogLog interface {
@@ -68,7 +69,8 @@ func getAlpha(m uint) (result float64) {
 }
 
 func (h *AbstractHyperLogLog) getRegisterIndexAndCount(data []byte) (uint64, uint64) {
-	hash, _ := hash.Sum128(data)
+	prime, _ := rand.Prime(rand.Reader, 64)
+	hash, _ := metro.Hash128(data, prime.Uint64())
 	k := 32 - h.numBytesPerHash
 	registerIndex := 1 + bits.LeadingZeros64(hash<<h.numBytesPerHash)
 	count := hash >> uint(k)
