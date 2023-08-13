@@ -1,7 +1,6 @@
 package filters
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -61,8 +60,7 @@ func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
 }
 
 func getHashes(data []byte) [2]uint64 {
-	prime, _ := rand.Prime(rand.Reader, 64)
-	hash1, hash2 := metro.Hash128(data, prime.Uint64())
+	hash1, hash2 := metro.Hash128(data, 1373)
 	return [2]uint64{hash1, hash2}
 }
 
