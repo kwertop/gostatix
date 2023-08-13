@@ -107,21 +107,30 @@ func (t *TopK) Values() []TopKElement {
 	return results
 }
 
+type heapElementJSON struct {
+	Value     string `json:"v"`
+	Frequency uint64 `json:"f"`
+}
+
 type topKJSON struct {
 	K         uint               `json:"k"`
 	ErrorRate float64            `json:"er"`
 	Accuracy  float64            `json:"a"`
 	Sketch    countMinSketchJSON `json:"s"`
-	Heap      MinHeap            `json:"h"`
+	Heap      []heapElementJSON  `json:"h"`
 }
 
-func (t *TopK) Expport() ([]byte, error) {
+func (t *TopK) Export() ([]byte, error) {
 	var sketch countMinSketchJSON
 	sketch.AllSum = t.sketch.allSum
 	sketch.Columns = t.sketch.columns
 	sketch.Rows = t.sketch.rows
 	sketch.Matrix = t.sketch.matrix
-	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, t.heap})
+	var heap []heapElementJSON
+	for i := range t.heap {
+		heap = append(heap, heapElementJSON{Value: t.heap[i].value, Frequency: t.heap[i].frequency})
+	}
+	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, heap})
 }
 
 func (t *TopK) Import(data []byte) error {
@@ -133,11 +142,17 @@ func (t *TopK) Import(data []byte) error {
 	t.k = topk.K
 	t.accuracy = topk.Accuracy
 	t.errorRate = topk.ErrorRate
-	t.heap = topk.Heap
+	var heap MinHeap
+	for i := range topk.Heap {
+		heap = append(heap, HeapElement{value: topk.Heap[i].Value, frequency: topk.Heap[i].Frequency})
+	}
+	t.heap = heap
 	sketch, err := NewCountMinSketch(topk.Sketch.Rows, topk.Sketch.Columns)
 	if err != nil {
 		return fmt.Errorf("gostatix: error while unmarshalling data, error %v", err)
 	}
+	sketch.allSum = topk.Sketch.AllSum
+	sketch.matrix = topk.Sketch.Matrix
 	t.sketch = sketch
 	return nil
 }
