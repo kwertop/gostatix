@@ -1,7 +1,6 @@
 package count
 
 import (
-	"crypto/rand"
 	"fmt"
 	"math"
 	"math/bits"
@@ -69,8 +68,7 @@ func getAlpha(m uint) (result float64) {
 }
 
 func (h *AbstractHyperLogLog) getRegisterIndexAndCount(data []byte) (uint64, uint64) {
-	prime, _ := rand.Prime(rand.Reader, 64)
-	hash, _ := metro.Hash128(data, prime.Uint64())
+	hash, _ := metro.Hash128(data, 1373)
 	k := 32 - h.numBytesPerHash
 	registerIndex := 1 + bits.LeadingZeros64(hash<<h.numBytesPerHash)
 	count := hash >> uint(k)

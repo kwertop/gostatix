@@ -1,7 +1,6 @@
 package filters
 
 import (
-	"crypto/rand"
 	"fmt"
 	"math"
 	"strconv"
@@ -81,8 +80,7 @@ func (cuckooFilter *AbstractCuckooFilter) getPositions(data []byte) (string, uin
 }
 
 func getHash(data []byte) uint64 {
-	prime, _ := rand.Prime(rand.Reader, 64)
-	hash1, _ := metro.Hash128(data, prime.Uint64())
+	hash1, _ := metro.Hash128(data, 1373)
 	return hash1
 }
 

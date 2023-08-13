@@ -1,8 +1,6 @@
 package count
 
 import (
-	"crypto/rand"
-
 	"github.com/dgryski/go-metro"
 )
 
@@ -41,8 +39,7 @@ func (cms *AbstractCountMinSketch) GetColumns() uint {
 
 func (cms AbstractCountMinSketch) getPositions(data []byte) []uint {
 	positions := make([]uint, cms.rows)
-	prime, _ := rand.Prime(rand.Reader, 64)
-	hash1, hash2 := metro.Hash128(data, prime.Uint64())
+	hash1, hash2 := metro.Hash128(data, 1373)
 	for c := range positions {
 		positions[c] = uint((hash1 + uint64(c)*hash2) % uint64(cms.columns))
 	}
