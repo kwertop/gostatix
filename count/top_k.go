@@ -1,6 +1,12 @@
 package count
 
-import "container/heap"
+import (
+	"container/heap"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+)
 
 type HeapElement struct {
 	value     string
@@ -46,7 +52,7 @@ type TopK struct {
 	k         uint
 	errorRate float64
 	accuracy  float64
-	sketch    CountMinSketch
+	sketch    *CountMinSketch
 	heap      MinHeap
 }
 
@@ -58,7 +64,7 @@ type TopKElement struct {
 func NewTopK(k uint, errorRate, accuracy float64) *TopK {
 	sketch, _ := NewCountMinSketchFromEstimates(errorRate, accuracy)
 	heap := &MinHeap{}
-	return &TopK{k, errorRate, accuracy, *sketch, *heap}
+	return &TopK{k, errorRate, accuracy, sketch, *heap}
 }
 
 func (t *TopK) Insert(data []byte, count uint64) {
@@ -66,14 +72,15 @@ func (t *TopK) Insert(data []byte, count uint64) {
 	if count <= 0 {
 		panic("count must be greater than zero")
 	}
-	t.sketch.Update(data, count)
-	frequency := t.sketch.Count(data)
+	sketch := t.sketch
+	sketch.Update(data, count)
+	frequency := sketch.Count(data)
 	if uint(len(t.heap)) < t.k || frequency >= t.heap[0].frequency {
 		index := t.heap.IndexOf(element)
 		if index > -1 {
 			heap.Remove(&t.heap, index)
 		}
-		heap.Push(&t.heap, &HeapElement{element, frequency})
+		heap.Push(&t.heap, HeapElement{element, frequency})
 		if uint(len(t.heap)) > t.k {
 			heap.Pop(&t.heap)
 		}
@@ -85,5 +92,73 @@ func (t *TopK) Values() []TopKElement {
 	for i := len(t.heap) - 1; i >= 0; i-- {
 		results = append(results, TopKElement{t.heap[i].value, t.heap[i].frequency})
 	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].count == results[j].count {
+			c := strings.Compare(results[i].element, results[j].element)
+			if c == -1 {
+				return true
+			}
+			if c == 1 {
+				return false
+			}
+		}
+		return results[i].count > results[j].count
+	})
 	return results
+}
+
+type topKJSON struct {
+	K         uint               `json:"k"`
+	ErrorRate float64            `json:"er"`
+	Accuracy  float64            `json:"a"`
+	Sketch    countMinSketchJSON `json:"s"`
+	Heap      MinHeap            `json:"h"`
+}
+
+func (t *TopK) Expport() ([]byte, error) {
+	var sketch countMinSketchJSON
+	sketch.AllSum = t.sketch.allSum
+	sketch.Columns = t.sketch.columns
+	sketch.Rows = t.sketch.rows
+	sketch.Matrix = t.sketch.matrix
+	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, t.heap})
+}
+
+func (t *TopK) Import(data []byte) error {
+	var topk topKJSON
+	err := json.Unmarshal(data, &topk)
+	if err != nil {
+		return fmt.Errorf("gostatix: error while unmarshalling data, error %v", err)
+	}
+	t.k = topk.K
+	t.accuracy = topk.Accuracy
+	t.errorRate = topk.ErrorRate
+	t.heap = topk.Heap
+	sketch, err := NewCountMinSketch(topk.Sketch.Rows, topk.Sketch.Columns)
+	if err != nil {
+		return fmt.Errorf("gostatix: error while unmarshalling data, error %v", err)
+	}
+	t.sketch = sketch
+	return nil
+}
+
+func (t *TopK) Equals(u *TopK) (bool, error) {
+	if t.k != u.k {
+		return false, fmt.Errorf("parameter k are not equal, %d and %d", t.k, u.k)
+	}
+	if t.accuracy != u.accuracy {
+		return false, fmt.Errorf("parameter accuracy are not equal, %f and %f", t.accuracy, u.accuracy)
+	}
+	if t.errorRate != u.errorRate {
+		return false, fmt.Errorf("parameter errorRate are not equal, %f and %f", t.errorRate, u.errorRate)
+	}
+	if !t.sketch.Equals(u.sketch) {
+		return false, fmt.Errorf("sketches aren't equal")
+	}
+	for i := range t.heap {
+		if t.heap[i] != u.heap[i] {
+			return false, fmt.Errorf("heaps aren't equal")
+		}
+	}
+	return true, nil
 }
