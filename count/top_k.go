@@ -118,6 +118,7 @@ type topKJSON struct {
 	Accuracy  float64            `json:"a"`
 	Sketch    countMinSketchJSON `json:"s"`
 	Heap      []heapElementJSON  `json:"h"`
+	HeapKey   string             `json:"hk"`
 }
 
 func (t *TopK) Export() ([]byte, error) {
@@ -130,7 +131,7 @@ func (t *TopK) Export() ([]byte, error) {
 	for i := range t.heap {
 		heap = append(heap, heapElementJSON{Value: t.heap[i].value, Frequency: t.heap[i].frequency})
 	}
-	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, heap})
+	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, heap, ""})
 }
 
 func (t *TopK) Import(data []byte) error {
