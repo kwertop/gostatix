@@ -293,6 +293,7 @@ func (cms *CountMinSketchRedis) setMatrix(matrix [][]uint64) error {
 				row[j] = ARGV[index]
 				index = index + 1
 			end
+			redis.call('DEL', rowKey)
 			redis.call('RPUSH', rowKey, unpack(row))
 		end
 		return true
@@ -309,24 +310,16 @@ func (cms *CountMinSketchRedis) setMatrix(matrix [][]uint64) error {
 	return nil
 }
 
-type countMinSketchRedisJSON struct {
-	Rows    uint       `json:"r"`
-	Columns uint       `json:"c"`
-	AllSum  uint64     `json:"s"`
-	Matrix  [][]uint64 `json:"m"`
-	Key     string     `json:"k"`
-}
-
 func (cms *CountMinSketchRedis) Export() ([]byte, error) {
 	matrix, err := cms.getMatrix()
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(countMinSketchRedisJSON{cms.rows, cms.columns, cms.allSum, matrix, cms.key})
+	return json.Marshal(countMinSketchJSON{cms.rows, cms.columns, cms.allSum, matrix, cms.key})
 }
 
 func (cms *CountMinSketchRedis) Import(data []byte, withNewKey bool) error {
-	var s countMinSketchRedisJSON
+	var s countMinSketchJSON
 	err := json.Unmarshal(data, &s)
 	if err != nil {
 		return err

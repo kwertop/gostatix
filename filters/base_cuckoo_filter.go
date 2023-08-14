@@ -5,7 +5,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/dgryski/go-metro"
+	"github.com/kwertop/gostatix/hash"
 )
 
 type Entry struct {
@@ -80,7 +80,8 @@ func (cuckooFilter *AbstractCuckooFilter) getPositions(data []byte) (string, uin
 }
 
 func getHash(data []byte) uint64 {
-	hash1, _ := metro.Hash128(data, 1373)
+	hash1, _ := hash.Sum128(data)
+	// hash := metro.Hash64(data, 1373)
 	return hash1
 }
 

@@ -6,59 +6,12 @@ import (
 	"testing"
 )
 
-var items = []string{
-	"apple",
-	"orange",
-	"banana",
-	"carrot",
-	"apple",
-	"grape",
-	"apple",
-	"carrot",
-	"apple",
-	"banana",
-	"plum",
-	"plum",
-	"peach",
-	"apple",
-	"carrot",
-	"peach",
-	"mango",
-	"apple",
-	"grape",
-	"melon",
-	"pineapple",
-	"kiwi",
-	"banana",
-	"grape",
-	"apple",
-	"kiwi",
-	"pineapple",
-	"mango",
-	"plum",
-	"peach",
-	"banana",
-}
-
-var expectedTopElements = []string{
-	"apple",
-	"banana",
-	"carrot",
-	"grape",
-	"peach",
-	"plum",
-	"kiwi",
-	"mango",
-	"pineapple",
-	"melon",
-	"orange",
-}
-
-func TestTopKBasic(t *testing.T) {
+func TestTopKRedisBasic(t *testing.T) {
+	initMockRedis()
 	k := uint(5)
 	errorRate := 0.001
 	delta := 0.999
-	topkSingleEntry := NewTopK(k, errorRate, delta)
+	topkSingleEntry := NewTopKRedis(k, errorRate, delta)
 
 	frequencyMap := make(map[string]int)
 
@@ -67,13 +20,13 @@ func TestTopKBasic(t *testing.T) {
 		frequencyMap[items[i]]++
 	}
 
-	topkBatchEntry := NewTopK(k, errorRate, delta)
+	topkBatchEntry := NewTopKRedis(k, errorRate, delta)
 	for key, val := range frequencyMap {
 		topkBatchEntry.Insert([]byte(key), uint64(val))
 	}
 
-	val1 := topkSingleEntry.Values()
-	val2 := topkBatchEntry.Values()
+	val1, _ := topkSingleEntry.Values()
+	val2, _ := topkBatchEntry.Values()
 
 	if !reflect.DeepEqual(val1, val2) {
 		t.Error("both topk data structures should be equal")
@@ -86,10 +39,11 @@ func TestTopKBasic(t *testing.T) {
 	}
 }
 
-func TestTopKDifferentKs(t *testing.T) {
+func TestTopRedisKDifferentKs(t *testing.T) {
+	initMockRedis()
 	errorRate := 0.001
 	delta := 0.999
-	topk := NewTopK(11, errorRate, delta)
+	topk := NewTopKRedis(11, errorRate, delta)
 
 	frequencyMap := make(map[string]int)
 
@@ -98,7 +52,7 @@ func TestTopKDifferentKs(t *testing.T) {
 		frequencyMap[items[i]]++
 	}
 
-	val := topk.Values()
+	val, _ := topk.Values()
 
 	for i := range expectedTopElements {
 		if strings.Compare(expectedTopElements[i], val[i].element) != 0 {
@@ -109,14 +63,14 @@ func TestTopKDifferentKs(t *testing.T) {
 		}
 	}
 
-	topk = NewTopK(3, errorRate, delta)
+	topk = NewTopKRedis(6, errorRate, delta)
 	for i := range items {
 		topk.Insert([]byte(items[i]), 1)
 	}
 
-	val = topk.Values()
+	val, _ = topk.Values()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 6; i++ {
 		if strings.Compare(expectedTopElements[i], val[i].element) != 0 {
 			t.Errorf("values at position %d don't match", i)
 		}
@@ -126,16 +80,17 @@ func TestTopKDifferentKs(t *testing.T) {
 	}
 }
 
-func TestEquals(t *testing.T) {
+func TestTopKRedisEquals(t *testing.T) {
+	initMockRedis()
 	errorRate := 0.001
 	delta := 0.999
 
-	k := NewTopK(10, errorRate, delta)
+	k := NewTopKRedis(10, errorRate, delta)
 	for i := 0; i < 10; i++ {
 		k.Insert([]byte(items[i]), 1)
 	}
 
-	l := NewTopK(10, errorRate, delta)
+	l := NewTopKRedis(10, errorRate, delta)
 	for i := 0; i < 10; i++ {
 		l.Insert([]byte(items[i]), 1)
 	}
@@ -145,29 +100,25 @@ func TestEquals(t *testing.T) {
 	}
 }
 
-func TestTopKImportExport(t *testing.T) {
-	errorRate := 0.001
-	delta := 0.999
+func TestTopKRedisImportExport(t *testing.T) {
+	initMockRedis()
+	errorRate := 0.1
+	delta := 0.9
 
-	k := NewTopK(5, errorRate, delta)
+	k := NewTopKRedis(5, errorRate, delta)
 	for i := 0; i < 10; i++ {
 		k.Insert([]byte(items[i]), 1)
 	}
 
-	l := NewTopK(5, errorRate, delta)
+	l := NewTopKRedis(5, errorRate, delta)
 	for i := 0; i < 10; i++ {
 		l.Insert([]byte(items[i]), 1)
 	}
 
 	s, _ := k.Export()
-	u, _ := l.Export()
 
-	if !reflect.DeepEqual(s, u) {
-		t.Errorf("topk l and k should be equal")
-	}
-
-	m := NewTopK(10, errorRate, delta)
-	m.Import(s)
+	m := NewTopKRedis(10, errorRate, delta)
+	m.Import(s, true)
 
 	if ok, _ := m.Equals(k); !ok {
 		t.Errorf("topk k and m should be equal")

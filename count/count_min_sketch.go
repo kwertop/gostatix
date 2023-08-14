@@ -79,10 +79,11 @@ type countMinSketchJSON struct {
 	Columns uint       `json:"c"`
 	AllSum  uint64     `json:"s"`
 	Matrix  [][]uint64 `json:"m"`
+	Key     string     `json:"k"`
 }
 
 func (cms *CountMinSketch) Export() ([]byte, error) {
-	return json.Marshal(countMinSketchJSON{cms.rows, cms.columns, cms.allSum, cms.matrix})
+	return json.Marshal(countMinSketchJSON{cms.rows, cms.columns, cms.allSum, cms.matrix, ""})
 }
 
 func (cms *CountMinSketch) Import(data []byte) error {

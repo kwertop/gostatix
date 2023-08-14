@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/kwertop/gostatix"
 	"github.com/redis/go-redis/v9"
@@ -14,14 +15,14 @@ type TopKRedis struct {
 	k         uint
 	errorRate float64
 	accuracy  float64
-	sketch    CountMinSketchRedis
+	sketch    *CountMinSketchRedis
 	heapKey   string
 }
 
 func NewTopKRedis(k uint, errorRate, accuracy float64) *TopKRedis {
 	sketch, _ := NewCountMinSketchRedisFromEstimates(errorRate, accuracy)
 	heapKey := gostatix.GenerateRandomString(16)
-	return &TopKRedis{k, errorRate, accuracy, *sketch, heapKey}
+	return &TopKRedis{k, errorRate, accuracy, sketch, heapKey}
 }
 
 func (t *TopKRedis) Insert(data []byte, count uint64) error {
@@ -42,12 +43,9 @@ func (t *TopKRedis) Insert(data []byte, count uint64) error {
 	if err != nil {
 		return err
 	}
-	if heapLength < uint64(t.k) || frequency >= uint64(minElement[0].Score) {
-		index, err := gostatix.GetRedisClient().ZScore(context.Background(), t.heapKey, element).Result()
-		if err != nil {
-			return err
-		}
-		if index > -1 {
+	if heapLength < uint64(t.k) || (len(minElement) > 0 && frequency >= uint64(minElement[0].Score)) {
+		index := gostatix.GetRedisClient().ZScore(context.Background(), t.heapKey, element).Val()
+		if index > 0 {
 			err := gostatix.GetRedisClient().ZRem(context.Background(), t.heapKey, element).Err()
 			if err != nil {
 				return err
@@ -56,7 +54,7 @@ func (t *TopKRedis) Insert(data []byte, count uint64) error {
 		err = gostatix.GetRedisClient().ZAdd(
 			context.Background(),
 			t.heapKey,
-			redis.Z{Score: float64(count), Member: element},
+			redis.Z{Score: float64(frequency), Member: element},
 		).Err()
 		if err != nil {
 			return err
@@ -81,12 +79,21 @@ func (t *TopKRedis) Values() ([]TopKElement, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(elements, func(i, j int) bool {
-		return elements[i].Score < elements[j].Score
-	})
 	for i := len(elements) - 1; i >= 0; i-- {
 		results = append(results, TopKElement{elements[i].Member.(string), uint64(elements[i].Score)})
 	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].count == results[j].count {
+			c := strings.Compare(results[i].element, results[j].element)
+			if c == -1 {
+				return true
+			}
+			if c == 1 {
+				return false
+			}
+		}
+		return results[i].count > results[j].count
+	})
 	return results, nil
 }
 
@@ -100,7 +107,8 @@ func (t *TopKRedis) Equals(u *TopKRedis) (bool, error) {
 	if t.errorRate != u.errorRate {
 		return false, fmt.Errorf("parameter errorRate are not equal, %f and %f", t.errorRate, u.errorRate)
 	}
-	if ok, _ := t.sketch.Equals(&u.sketch); !ok {
+
+	if ok, _ := t.sketch.Equals(u.sketch); !ok {
 		return false, fmt.Errorf("sketches aren't equal")
 	}
 	return t.compareHeaps(u.heapKey)
@@ -121,6 +129,7 @@ func (t *TopKRedis) Export() ([]byte, error) {
 	sketch.Columns = t.sketch.columns
 	sketch.Rows = t.sketch.rows
 	sketch.Matrix, _ = t.sketch.getMatrix()
+	sketch.Key = t.sketch.key
 	var heap []heapElementJSON
 	for i := range result {
 		heap = append(heap, heapElementJSON{Value: result[i].Member.(string), Frequency: uint64(result[i].Score)})
@@ -156,7 +165,7 @@ func (t *TopKRedis) Import(data []byte, withNewKey bool) error {
 	}
 	sketch.allSum = topk.Sketch.AllSum
 	sketch.setMatrix(topk.Sketch.Matrix)
-	t.sketch = *sketch
+	t.sketch = sketch
 	return nil
 }
 
@@ -170,7 +179,7 @@ func (t *TopKRedis) importHeap(key string, frequencyMap map[string]uint) error {
 	}
 	importHeapScript := redis.NewScript(`
 		local key = KEYS[1]
-		local vals2 = redis.pcall('ZRANGE', key2, 0, -1)
+		local vals2 = redis.pcall('ZRANGE', key, 0, -1)
 		for i=1, #ARGV, 2 do
 			local element = ARGV[i]
 			local score = ARGV[i+1]
