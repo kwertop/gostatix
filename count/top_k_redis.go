@@ -137,11 +137,16 @@ func (t *TopKRedis) Import(data []byte, withNewKey bool) error {
 	t.k = topk.K
 	t.accuracy = topk.Accuracy
 	t.errorRate = topk.ErrorRate
+	if withNewKey {
+		t.heapKey = gostatix.GenerateRandomString(16)
+	} else {
+		t.heapKey = topk.HeapKey
+	}
 	frequencyMap := make(map[string]uint)
 	for i := range topk.Heap {
 		frequencyMap[topk.Heap[i].Value]++
 	}
-	err = t.importHeap(topk.HeapKey, frequencyMap)
+	err = t.importHeap(t.heapKey, frequencyMap)
 	if err != nil {
 		return fmt.Errorf("gostatix: error while unmarshalling data, error %v", err)
 	}
