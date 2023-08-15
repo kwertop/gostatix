@@ -1,8 +1,10 @@
 package count
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 )
 
@@ -111,4 +113,65 @@ func (cms *CountMinSketch) Equals(cms1 *CountMinSketch) bool {
 		}
 	}
 	return true
+}
+
+func (cms *CountMinSketch) WriteTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, uint64(cms.rows))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, uint64(cms.columns))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, cms.allSum)
+	if err != nil {
+		return 0, err
+	}
+	row := make([]uint64, cms.columns)
+	for r := uint(0); r < cms.rows; r++ {
+		for c := uint(0); c < cms.columns; c++ {
+			row[c] = cms.matrix[r][c]
+		}
+		err = binary.Write(stream, binary.BigEndian, row)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return int64(3*binary.Size(uint64(0)) + int(cms.rows)*binary.Size(row)), nil
+}
+
+func (cms *CountMinSketch) ReadFrom(stream io.Reader) (int64, error) {
+	var rows, columns, allSum uint64
+	err := binary.Read(stream, binary.BigEndian, &rows)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &columns)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &allSum)
+	if err != nil {
+		return 0, err
+	}
+	cms.rows = uint(rows)
+	cms.columns = uint(columns)
+	cms.allSum = allSum
+	cms.matrix = make([][]uint64, cms.rows)
+	for r := uint(0); r < cms.rows; r++ {
+		cms.matrix[r] = make([]uint64, cms.columns)
+	}
+
+	row := make([]uint64, cms.columns)
+	for r := uint(0); r < cms.rows; r++ {
+		err = binary.Read(stream, binary.BigEndian, &row)
+		if err != nil {
+			return 0, err
+		}
+		for c := uint(0); c < cms.columns; c++ {
+			cms.matrix[r][c] = row[c]
+		}
+	}
+	return int64(2*binary.Size(uint64(0)) + int(cms.rows)*binary.Size(row)), nil
 }

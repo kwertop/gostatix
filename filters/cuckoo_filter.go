@@ -174,15 +174,15 @@ func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	err = binary.Write(stream, binary.BigEndian, uint64(cuckooFilter.fingerPrintLength))
+	err = binary.Write(stream, binary.BigEndian, cuckooFilter.fingerPrintLength)
 	if err != nil {
 		return 0, err
 	}
-	err = binary.Write(stream, binary.BigEndian, uint64(cuckooFilter.length))
+	err = binary.Write(stream, binary.BigEndian, cuckooFilter.length)
 	if err != nil {
 		return 0, err
 	}
-	err = binary.Write(stream, binary.BigEndian, uint64(cuckooFilter.retries))
+	err = binary.Write(stream, binary.BigEndian, cuckooFilter.retries)
 	if err != nil {
 		return 0, err
 	}
