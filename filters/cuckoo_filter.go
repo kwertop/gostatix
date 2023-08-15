@@ -1,7 +1,9 @@
 package filters
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"io"
 	"math"
 	"math/rand"
 
@@ -161,4 +163,77 @@ func (cuckooFilter *CuckooFilter) Import(data []byte) error {
 	}
 	cuckooFilter.buckets = filters
 	return nil
+}
+
+func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, cuckooFilter.size)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, cuckooFilter.bucketSize)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, uint64(cuckooFilter.fingerPrintLength))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, uint64(cuckooFilter.length))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, uint64(cuckooFilter.retries))
+	if err != nil {
+		return 0, err
+	}
+	numBytes := int64(0)
+	for i := uint64(0); i < cuckooFilter.length; i++ {
+		bytes, err := cuckooFilter.buckets[i].WriteTo(stream)
+		if err != nil {
+			return 0, err
+		}
+		numBytes += bytes
+	}
+	return numBytes + int64(5*binary.Size(uint64(0))), nil
+}
+
+func (cuckooFilter *CuckooFilter) ReadFrom(stream io.Reader) (int64, error) {
+	var size, bucketSize, fingerPrintLength, length, retries uint64
+	err := binary.Read(stream, binary.BigEndian, &size)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &bucketSize)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &fingerPrintLength)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &length)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &retries)
+	if err != nil {
+		return 0, err
+	}
+	cuckooFilter.size = size
+	cuckooFilter.bucketSize = bucketSize
+	cuckooFilter.fingerPrintLength = fingerPrintLength
+	cuckooFilter.length = length
+	cuckooFilter.retries = retries
+	cuckooFilter.buckets = make([]buckets.BucketMem, size)
+	numBytes := int64(0)
+	for i := uint64(0); i < cuckooFilter.length; i++ {
+		bucket := &buckets.BucketMem{}
+		bytes, err := bucket.ReadFrom(stream)
+		if err != nil {
+			return 0, err
+		}
+		numBytes += bytes
+		cuckooFilter.buckets[i] = *bucket
+	}
+	return numBytes + int64(5*binary.Size(uint64(0))), nil
 }
