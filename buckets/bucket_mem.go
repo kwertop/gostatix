@@ -1,5 +1,11 @@
 package buckets
 
+import (
+	"encoding/binary"
+	"fmt"
+	"io"
+)
+
 type BucketMem struct {
 	elements []string
 	*AbstractBucket
@@ -71,6 +77,62 @@ func (bucket BucketMem) Equals(otherBucket BucketMem) bool {
 		}
 	}
 	return true
+}
+
+func (bucket *BucketMem) WriteTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, uint64(bucket.size))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, uint64(bucket.length))
+	if err != nil {
+		return 0, err
+	}
+	numBytes := 0
+	for i := range bucket.elements {
+		str := bucket.elements[i]
+		err := binary.Write(stream, binary.BigEndian, uint64(len(str)))
+		if err != nil {
+			return 0, fmt.Errorf("gostatix: error encoding string length. error: %v", err)
+		}
+		bytes, err := stream.Write([]byte(str))
+		if err != nil {
+			return 0, fmt.Errorf("gostatix: error encoding string. error: %v", err)
+		}
+		numBytes += bytes
+	}
+	return int64(numBytes) + int64(2*binary.Size(uint64(0))), nil
+}
+
+func (bucket *BucketMem) ReadFrom(stream io.Reader) (int64, error) {
+	var size, length uint64
+	err := binary.Read(stream, binary.BigEndian, &size)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &length)
+	if err != nil {
+		return 0, err
+	}
+	bucket.size = size
+	bucket.length = length
+	bucket.elements = make([]string, size)
+	numBytes := 0
+	for i := uint64(0); i < size; i++ {
+		var strLen uint64
+		err := binary.Read(stream, binary.BigEndian, &size)
+		if err != nil {
+			return 0, err
+		}
+		b := make([]byte, strLen)
+		bytes, err := io.ReadFull(stream, b)
+		if err != nil {
+			return 0, err
+		}
+		numBytes += bytes
+		bucket.elements[i] = string(b)
+	}
+	return int64(numBytes) + int64(2*binary.Size(uint64(0))), nil
 }
 
 func (bucket BucketMem) indexOf(element string) int64 {
