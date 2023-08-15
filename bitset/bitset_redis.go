@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"encoding/base64"
 	"encoding/binary"
@@ -151,4 +152,12 @@ func uint64ArrayToByteArray(data []uint64) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (bitSet *BitSetRedis) WriteTo(stream io.Writer) (int64, error) {
+	return 0, nil //bitsetredis doesn't implement WriteTo function
+}
+
+func (bitSet *BitSetRedis) ReadFrom(stream io.Reader) (int64, error) {
+	return 0, nil //bitsetredis doesn't implement ReadFrom function
 }

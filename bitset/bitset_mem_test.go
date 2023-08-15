@@ -60,7 +60,7 @@ func TestBitSetMemExport(t *testing.T) {
 	bitset.Insert(5)
 	bitset.Insert(8)
 	size, data, _ := bitset.Export()
-	str := "\"AAAAAAAAAAYAAAAAAAABIg==\""
+	str := "\"AAAAAAAAAAkAAAAAAAABIg==\""
 	if size != 6 {
 		t.Fatalf("size of bitset should be 6, got %v", size)
 	}

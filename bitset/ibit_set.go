@@ -1,5 +1,7 @@
 package bitset
 
+import "io"
+
 const wordSize = uint(64)
 const wordBytes = wordSize / 8
 
@@ -12,4 +14,15 @@ type IBitSet interface {
 	BitCount() (uint, error)
 	Export() (uint, []byte, error)
 	Import(data []byte) (bool, error)
+	WriteTo(stream io.Writer) (int64, error)
+	ReadFrom(stream io.Reader) (int64, error)
+}
+
+func IsBitSetMem(t interface{}) bool {
+	switch t.(type) {
+	case BitSetMem:
+		return true
+	default:
+		return false
+	}
 }

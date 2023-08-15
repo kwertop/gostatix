@@ -1,22 +1,24 @@
 package bitset
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 
 	"github.com/bits-and-blooms/bitset"
 )
 
 type BitSetMem struct {
-	set  bitset.BitSet
+	set  *bitset.BitSet
 	size uint
 }
 
 func NewBitSetMem(size uint) *BitSetMem {
-	return &BitSetMem{*bitset.New(size), size}
+	return &BitSetMem{bitset.New(size), size}
 }
 
 func FromDataMem(data []uint64) *BitSetMem {
-	return &BitSetMem{*bitset.From(data), uint(len(data) * 64)}
+	return &BitSetMem{bitset.From(data), uint(len(data) * 64)}
 }
 
 func (bitSet BitSetMem) Size() uint {
@@ -71,5 +73,33 @@ func (firstBitSet BitSetMem) Equals(otherBitSet IBitSet) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("invalid bitset type, should be BitSetMem, type: %v", secondBitSet)
 	}
-	return firstBitSet.set.Equal(&secondBitSet.set), nil
+	return firstBitSet.set.Equal(secondBitSet.set), nil
+}
+
+func (bitSet *BitSetMem) WriteTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, uint64(bitSet.size))
+	if err != nil {
+		return 0, err
+	}
+	numBytes, err := bitSet.set.WriteTo(stream)
+	if err != nil {
+		return 0, err
+	}
+	return numBytes + int64(binary.Size(uint64(0))), nil
+}
+
+func (bitSet *BitSetMem) ReadFrom(stream io.Reader) (int64, error) {
+	var size uint64
+	err := binary.Read(stream, binary.BigEndian, &size)
+	if err != nil {
+		return 0, err
+	}
+	set := &bitset.BitSet{}
+	numBytes, err := set.ReadFrom(stream)
+	if err != nil {
+		return 0, err
+	}
+	bitSet.size = uint(size)
+	bitSet.set = set
+	return numBytes + int64(binary.Size(uint64(0))), nil
 }
