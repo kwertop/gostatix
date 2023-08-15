@@ -1,8 +1,10 @@
 package count
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/kwertop/gostatix"
@@ -79,4 +81,50 @@ func (h *HyperLogLog) Import(data []byte) error {
 	h.correctionBias = g.CorrectionBias
 	h.registers = g.Registers
 	return nil
+}
+
+func (h *HyperLogLog) WriteTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, h.numRegisters)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, h.numBytesPerHash)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, h.correctionBias)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, h.registers)
+	if err != nil {
+		return 0, err
+	}
+	return int64((h.numRegisters + 3) * uint64(binary.Size(uint64(0)))), nil
+}
+
+func (h *HyperLogLog) ReadFrom(stream io.Reader) (int64, error) {
+	var numRegisters, numBytesPerHash uint64
+	err := binary.Read(stream, binary.BigEndian, &numRegisters)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &numBytesPerHash)
+	if err != nil {
+		return 0, err
+	}
+	var correctionBias float64
+	err = binary.Read(stream, binary.BigEndian, &correctionBias)
+	if err != nil {
+		return 0, err
+	}
+	h.numRegisters = numRegisters
+	h.numBytesPerHash = numBytesPerHash
+	h.correctionBias = correctionBias
+	registers := make([]uint8, numRegisters)
+	err = binary.Read(stream, binary.BigEndian, &registers)
+	if err != nil {
+		return 0, err
+	}
+	return int64((h.numRegisters + 3) * uint64(binary.Size(uint64(0)))), nil
 }
