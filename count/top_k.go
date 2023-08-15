@@ -2,8 +2,10 @@ package count
 
 import (
 	"container/heap"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 )
@@ -177,4 +179,41 @@ func (t *TopK) Equals(u *TopK) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (t *TopK) WriteTo(stream io.Writer) (int64, error) {
+	err := binary.Write(stream, binary.BigEndian, uint64(t.k))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, t.errorRate)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, t.accuracy)
+	if err != nil {
+		return 0, err
+	}
+	numBytesSketch, err := t.sketch.WriteTo(stream)
+	if err != nil {
+		return 0, err
+	}
+	numBytesHeap := int64(0)
+	for i := 0; i < len(t.heap); i++ {
+		element := t.heap[i]
+		err := binary.Write(stream, binary.BigEndian, uint64(len(element.value)))
+		if err != nil {
+			return 0, err
+		}
+		bytesStr, err := stream.Write([]byte(element.value))
+		if err != nil {
+			return 0, err
+		}
+		err = binary.Write(stream, binary.BigEndian, element.frequency)
+		if err != nil {
+			return 0, err
+		}
+		numBytesHeap += int64(bytesStr + 2*binary.Size(uint64(0)))
+	}
+	return numBytesSketch + numBytesHeap + int64(3*binary.Size(uint64(0))), nil
 }
