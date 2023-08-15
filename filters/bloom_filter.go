@@ -1,8 +1,10 @@
 package filters
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/dgryski/go-metro"
@@ -139,4 +141,44 @@ func (bloomFilter *BloomFilter) Import(data []byte) error {
 	bloomFilter.numHashes = f.K
 	_, err = bloomFilter.filter.Import(f.B)
 	return err
+}
+
+func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
+	if !bitset.IsBitSetMem(bloomFilter.filter) {
+		return 0, fmt.Errorf("stream write doesn't support bitset redis")
+	}
+	err := binary.Write(stream, binary.BigEndian, uint64(bloomFilter.size))
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Write(stream, binary.BigEndian, uint64(bloomFilter.numHashes))
+	if err != nil {
+		return 0, err
+	}
+	numBytes, err := bloomFilter.filter.WriteTo(stream)
+	return numBytes + int64(2*binary.Size(uint64(0))), err
+}
+
+func (bloomFilter *BloomFilter) ReadFrom(stream io.Reader) (int64, error) {
+	if !bitset.IsBitSetMem(bloomFilter.filter) {
+		return 0, fmt.Errorf("stream read doesn't support bitset redis")
+	}
+	var size, numHashes uint64
+	err := binary.Read(stream, binary.BigEndian, &size)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &numHashes)
+	if err != nil {
+		return 0, err
+	}
+	bitSet := &bitset.BitSetMem{}
+	numBytes, err := bitSet.ReadFrom(stream)
+	if err != nil {
+		return 0, err
+	}
+	bloomFilter.size = uint(size)
+	bloomFilter.numHashes = uint(numHashes)
+	bloomFilter.filter = bitSet
+	return numBytes + int64(2*binary.Size(uint64(0))), nil
 }
