@@ -1,6 +1,9 @@
 package buckets
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestBasicBucketMem(t *testing.T) {
 	bucket := NewBucketMem(100)
@@ -91,6 +94,48 @@ func TestBucketMemEquals(t *testing.T) {
 	if !ok {
 		t.Error("b1 and b2 should be equal")
 	}
+	b2.Remove("foo")
+	ok = b1.Equals(*b2)
+	if ok {
+		t.Error("b1 and b2 shouldn't be equal here")
+	}
+}
+
+func TestBucketMemBinaryReadWrite(t *testing.T) {
+	b1 := NewBucketMem(10)
+	b1.Add("foo")
+	b1.Add("bar")
+	b1.Add("baz")
+
+	var buff bytes.Buffer
+	_, err := b1.WriteTo(&buff)
+	if err != nil {
+		t.Error("should not error out in writing to buffer")
+	}
+
+	b2 := NewBucketMem(0)
+	_, err = b2.ReadFrom(&buff)
+	if err != nil {
+		t.Error("should not error out in reading from buffer")
+	}
+
+	ok := b1.Equals(*b2)
+	if !ok {
+		t.Error("b1 and b2 should be equal")
+	}
+
+	if ok = b2.Lookup("faz"); ok {
+		t.Error("faz should not be present in b2")
+	}
+
+	if ok = b2.Lookup("foo"); !ok {
+		t.Error("foo should be present in b2")
+	}
+
+	if ok = b2.Lookup("bar"); !ok {
+		t.Error("bar should be present in b2")
+	}
+
 	b2.Remove("foo")
 	ok = b1.Equals(*b2)
 	if ok {

@@ -20,7 +20,7 @@ type IBitSet interface {
 
 func IsBitSetMem(t interface{}) bool {
 	switch t.(type) {
-	case BitSetMem:
+	case *BitSetMem:
 		return true
 	default:
 		return false

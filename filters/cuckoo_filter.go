@@ -187,7 +187,7 @@ func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
 		return 0, err
 	}
 	numBytes := int64(0)
-	for i := uint64(0); i < cuckooFilter.length; i++ {
+	for i := uint64(0); i < cuckooFilter.size; i++ {
 		bytes, err := cuckooFilter.buckets[i].WriteTo(stream)
 		if err != nil {
 			return 0, err
@@ -226,8 +226,8 @@ func (cuckooFilter *CuckooFilter) ReadFrom(stream io.Reader) (int64, error) {
 	cuckooFilter.retries = retries
 	cuckooFilter.buckets = make([]buckets.BucketMem, size)
 	numBytes := int64(0)
-	for i := uint64(0); i < cuckooFilter.length; i++ {
-		bucket := &buckets.BucketMem{}
+	for i := uint64(0); i < cuckooFilter.size; i++ {
+		bucket := buckets.NewBucketMem(0)
 		bytes, err := bucket.ReadFrom(stream)
 		if err != nil {
 			return 0, err

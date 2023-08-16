@@ -1,6 +1,7 @@
 package bitset
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -112,5 +113,38 @@ func TestBitSetMemEqual(t *testing.T) {
 	}
 	if !ok {
 		t.Fatal("aBitset and bBitset should be equal")
+	}
+}
+
+func TestBitSetMemBinaryReadWrite(t *testing.T) {
+	aBitset := NewBitSetMem(6)
+	aBitset.Insert(1)
+	aBitset.Insert(5)
+	aBitset.Insert(8)
+
+	var buff bytes.Buffer
+	_, err := aBitset.WriteTo(&buff)
+	if err != nil {
+		t.Error("error should be nil during binary write")
+	}
+
+	bBitSet := &BitSetMem{}
+	_, err = bBitSet.ReadFrom(&buff)
+	if err != nil {
+		t.Error("error should be nil during binary read")
+	}
+
+	if ok, _ := aBitset.Equals(bBitSet); !ok {
+		t.Error("aBitset and bBitset should be equal")
+	}
+
+	if ok, _ := bBitSet.Has(0); ok {
+		t.Fatalf("should be false at index 0, got %v", ok)
+	}
+	if ok, _ := bBitSet.Has(1); !ok {
+		t.Fatalf("should be true at index 1, got %v", ok)
+	}
+	if ok, _ := bBitSet.Has(5); !ok {
+		t.Fatalf("should be true at index 5, got %v", ok)
 	}
 }

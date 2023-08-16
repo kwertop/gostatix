@@ -160,9 +160,9 @@ func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
 }
 
 func (bloomFilter *BloomFilter) ReadFrom(stream io.Reader) (int64, error) {
-	if !bitset.IsBitSetMem(bloomFilter.filter) {
-		return 0, fmt.Errorf("stream read doesn't support bitset redis")
-	}
+	// if !bitset.IsBitSetMem(bloomFilter.filter) {
+	// 	return 0, fmt.Errorf("stream read doesn't support bitset redis")
+	// }
 	var size, numHashes uint64
 	err := binary.Read(stream, binary.BigEndian, &size)
 	if err != nil {

@@ -120,7 +120,7 @@ func (bucket *BucketMem) ReadFrom(stream io.Reader) (int64, error) {
 	numBytes := 0
 	for i := uint64(0); i < length; i++ {
 		var strLen uint64
-		err := binary.Read(stream, binary.BigEndian, &size)
+		err := binary.Read(stream, binary.BigEndian, &strLen)
 		if err != nil {
 			return 0, err
 		}

@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -277,5 +278,39 @@ func TestCuckooMarshalUnmarshal(t *testing.T) {
 	}
 	if !filter1.Equals(*filter3) || !filter2.Equals(*filter3) {
 		t.Errorf("filter1, filter2 and filter3 are same")
+	}
+}
+
+func TestCuckooBinaryReadWrite(t *testing.T) {
+	filter1 := NewCuckooFilter(5, 1, 3)
+	filter1.Insert([]byte("one"), false)
+	filter1.Insert([]byte("two"), false)
+	filter1.Insert([]byte("three"), false)
+	filter1.Insert([]byte("four"), false)
+
+	var buff bytes.Buffer
+	_, err := filter1.WriteTo(&buff)
+	if err != nil {
+		t.Error("should not error out in writing to buffer")
+	}
+
+	filter2 := NewCuckooFilter(0, 0, 0)
+	_, err = filter2.ReadFrom(&buff)
+	if err != nil {
+		t.Error("should not error out in reading from buffer")
+	}
+
+	if !filter1.Equals(*filter2) {
+		t.Errorf("filter1 and filter2 should be same")
+	}
+
+	if ok := filter2.Lookup([]byte("five")); ok {
+		t.Error("\"five\" should not be in filter2")
+	}
+	if ok := filter2.Lookup([]byte("one")); !ok {
+		t.Error("\"one\" should be in filter2")
+	}
+	if ok := filter2.Lookup([]byte("three")); !ok {
+		t.Error("\"three\" should be in filter2")
 	}
 }

@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 
@@ -253,5 +254,47 @@ func TestImportInvalidJSON(t *testing.T) {
 	err := g.Import(data)
 	if err == nil {
 		t.Error("expected error while unmarshalling invalid data")
+	}
+}
+
+func TestBitSetMemBinaryReadWrite(t *testing.T) {
+	aBitset := bitset.NewBitSetMem(1000)
+	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset)
+	e1 := "This"
+	e2 := "is"
+	e3 := "present"
+	e4 := "in"
+	e5 := "bloom"
+	aFilter.InsertString(e1)
+	aFilter.InsertString(e2)
+	aFilter.InsertString(e4)
+	aFilter.InsertString(e5)
+	var buff bytes.Buffer
+	_, err := aFilter.WriteTo(&buff)
+	if err != nil {
+		t.Error("error while encoding bloom filter")
+	}
+	bFilter := &BloomFilter{}
+	bFilter.ReadFrom(&buff)
+
+	if ok, _ := aFilter.Equals(*bFilter); !ok {
+		t.Error("aFilter and bFilter should be equal")
+	}
+
+	ok1 := bFilter.LookupString(e1)
+	ok2 := bFilter.LookupString(e2)
+	ok3 := bFilter.LookupString(e3)
+	ok4 := bFilter.LookupString("blooms")
+	if !ok1 {
+		t.Errorf("%v should be in the filter.", e1)
+	}
+	if !ok2 {
+		t.Errorf("%v should be in the filter.", e2)
+	}
+	if ok3 {
+		t.Errorf("%v should not be in the filter.", e3)
+	}
+	if ok4 {
+		t.Errorf("%v should not be in the filter.", "blooms")
 	}
 }
