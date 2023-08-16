@@ -56,7 +56,7 @@ var expectedTopElements = []string{
 }
 
 func TestTopKBasic(t *testing.T) {
-	k := uint(5)
+	k := uint(11)
 	errorRate := 0.001
 	delta := 0.999
 	topkSingleEntry := NewTopK(k, errorRate, delta)
@@ -90,7 +90,7 @@ func TestTopKBasic(t *testing.T) {
 func TestTopKDifferentKs(t *testing.T) {
 	errorRate := 0.001
 	delta := 0.999
-	topk := NewTopK(11, errorRate, delta)
+	topk := NewTopK(15, errorRate, delta)
 
 	frequencyMap := make(map[string]int)
 
