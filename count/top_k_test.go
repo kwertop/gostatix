@@ -1,6 +1,7 @@
 package count
 
 import (
+	"bytes"
 	"reflect"
 	"strings"
 	"testing"
@@ -171,5 +172,31 @@ func TestTopKImportExport(t *testing.T) {
 
 	if ok, _ := m.Equals(k); !ok {
 		t.Errorf("topk k and m should be equal")
+	}
+}
+
+func TestTopKBinaryReadWrite(t *testing.T) {
+	errorRate := 0.001
+	delta := 0.999
+
+	k := NewTopK(5, errorRate, delta)
+	for i := 0; i < 10; i++ {
+		k.Insert([]byte(items[i]), 1)
+	}
+
+	var buff bytes.Buffer
+	_, err := k.WriteTo(&buff)
+	if err != nil {
+		t.Error("should not error out writing to buffer")
+	}
+
+	l := &TopK{}
+	_, err = l.ReadFrom(&buff)
+	if err != nil {
+		t.Error("should not error out writing to buffer")
+	}
+
+	if ok, _ := k.Equals(l); !ok {
+		t.Error("k and l should be equal")
 	}
 }

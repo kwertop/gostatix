@@ -199,7 +199,7 @@ func (t *TopK) WriteTo(stream io.Writer) (int64, error) {
 		return 0, err
 	}
 	numBytesHeap := int64(0)
-	for i := 0; i < len(t.heap); i++ {
+	for i := uint(0); i < t.k; i++ {
 		element := t.heap[i]
 		err := binary.Write(stream, binary.BigEndian, uint64(len(element.value)))
 		if err != nil {
@@ -215,5 +215,52 @@ func (t *TopK) WriteTo(stream io.Writer) (int64, error) {
 		}
 		numBytesHeap += int64(bytesStr + 2*binary.Size(uint64(0)))
 	}
+	return numBytesSketch + numBytesHeap + int64(3*binary.Size(uint64(0))), nil
+}
+
+func (t *TopK) ReadFrom(stream io.Reader) (int64, error) {
+	var k uint64
+	var errorRate, accuracy float64
+	err := binary.Read(stream, binary.BigEndian, &k)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &errorRate)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(stream, binary.BigEndian, &accuracy)
+	if err != nil {
+		return 0, err
+	}
+	sketch, _ := NewCountMinSketch(1, 1)
+	numBytesSketch, err := sketch.ReadFrom(stream)
+	if err != nil {
+		return 0, err
+	}
+	numBytesHeap := int64(0)
+	heap := &MinHeap{}
+	for i := uint64(0); i < k; i++ {
+		var strLen, frequency uint64
+		err := binary.Read(stream, binary.BigEndian, &strLen)
+		if err != nil {
+			return 0, err
+		}
+		b := make([]byte, strLen)
+		_, err = io.ReadFull(stream, b)
+		if err != nil {
+			return 0, err
+		}
+		err = binary.Read(stream, binary.BigEndian, &frequency)
+		if err != nil {
+			return 0, err
+		}
+		*heap = append(*heap, HeapElement{value: string(b), frequency: frequency})
+	}
+	t.k = uint(k)
+	t.accuracy = accuracy
+	t.errorRate = errorRate
+	t.heap = *heap
+	t.sketch = sketch
 	return numBytesSketch + numBytesHeap + int64(3*binary.Size(uint64(0))), nil
 }
