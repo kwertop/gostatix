@@ -1,6 +1,7 @@
 package count
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -112,5 +113,46 @@ func TestCountMinSketchImportExport(t *testing.T) {
 
 	if !cms1.Equals(cms3) {
 		t.Errorf("cms1 and cms3 should be equal")
+	}
+}
+
+func TestCountMinSketchBinaryReadWrite(t *testing.T) {
+	cms1, _ := NewCountMinSketchFromEstimates(0.001, delta)
+
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("baz", 1)
+
+	var buff bytes.Buffer
+	_, err := cms1.WriteTo(&buff)
+	if err != nil {
+		t.Error("should not error out writing to buffer")
+	}
+
+	cms2, _ := NewCountMinSketch(1, 1)
+	_, err = cms2.ReadFrom(&buff)
+	if err != nil {
+		t.Error("should not error out reading from buffer")
+	}
+
+	if !cms1.Equals(cms2) {
+		t.Error("cms1 and cms2 should be equal")
+	}
+
+	e1 := []byte("foo")
+	e2 := []byte("bar")
+	e3 := []byte("baz")
+	c1 := cms2.Count(e1)
+	c2 := cms2.Count(e2)
+	c3 := cms2.Count(e3)
+	if c1 != 3 {
+		t.Errorf("count of e1 should be 3, found %d", c1)
+	}
+	if c2 != 0 {
+		t.Errorf("count of e2 should be 0, found %d", c2)
+	}
+	if c3 != 1 {
+		t.Errorf("count of e3 should be 1, found %d", c3)
 	}
 }

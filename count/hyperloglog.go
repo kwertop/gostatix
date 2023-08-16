@@ -126,5 +126,6 @@ func (h *HyperLogLog) ReadFrom(stream io.Reader) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	h.registers = registers
 	return int64((h.numRegisters + 3) * uint64(binary.Size(uint64(0)))), nil
 }

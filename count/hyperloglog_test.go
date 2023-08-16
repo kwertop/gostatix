@@ -1,6 +1,7 @@
 package count
 
 import (
+	"bytes"
 	"math"
 	"reflect"
 	"strconv"
@@ -93,5 +94,29 @@ func TestHyperLogLogImportExport(t *testing.T) {
 
 	if !g.Equals(f) || !h.Equals(f) {
 		t.Errorf("h, g and f should be same")
+	}
+}
+
+func TestHyperLogLogBinaryReadWrite(t *testing.T) {
+	g, _ := NewHyperLogLog(16)
+
+	g.Update([]byte("foo"))
+	g.Update([]byte("bar"))
+	g.Update([]byte("baz"))
+
+	var buff bytes.Buffer
+	_, err := g.WriteTo(&buff)
+	if err != nil {
+		t.Error("should not error out while writing to buffer")
+	}
+
+	h, _ := NewHyperLogLog(2)
+	_, err = h.ReadFrom(&buff)
+	if err != nil {
+		t.Error("should not error out while reading from buffer")
+	}
+
+	if !g.Equals(h) {
+		t.Error("g and h should be equal")
 	}
 }
