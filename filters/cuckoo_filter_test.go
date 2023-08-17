@@ -2,7 +2,9 @@ package filters
 
 import (
 	"bytes"
+	"math/rand"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -312,5 +314,38 @@ func TestCuckooBinaryReadWrite(t *testing.T) {
 	}
 	if ok := filter2.Lookup([]byte("three")); !ok {
 		t.Error("\"three\" should be in filter2")
+	}
+}
+
+func BenchmarkCuckooInsert10MX4X500X001(b *testing.B) {
+	b.StopTimer()
+	filter := NewCuckooFilterWithErrorRate(10*1000*1000, 4, 500, 0.001)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), true)
+	}
+}
+
+func BenchmarkCuckooLookup10MX4X500X001(b *testing.B) {
+	b.StopTimer()
+	filter := NewCuckooFilterWithErrorRate(10*1000*1000, 4, 500, 0.001)
+	for i := 0; i < 1000000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), true)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkCuckooLookup1BX16X1kX001X5M(b *testing.B) {
+	b.StopTimer()
+	filter := NewCuckooFilterWithErrorRate(1000*1000*1000, 4, 500, 0.001)
+	for i := 0; i < 1000000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), true)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
 	}
 }

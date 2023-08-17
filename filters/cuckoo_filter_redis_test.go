@@ -1,8 +1,12 @@
 package filters
 
 import (
+	"fmt"
+	"math/rand"
 	"reflect"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/kwertop/gostatix"
@@ -296,4 +300,49 @@ func initMockRedis() {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
+}
+
+func BenchmarkCuckooRedisInsert10MX4X500X001(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	filter, err := NewCuckooFilterRedisWithErrorRate(1000*1000, 4, 500, 0.001)
+	if err != nil {
+		fmt.Printf("err: %v", err)
+		return
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), true)
+	}
+}
+
+func BenchmarkCuckooRedisLookup1MX4X500X001X10k(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	filter, _ := NewCuckooFilterRedisWithErrorRate(1000*1000, 4, 500, 0.001)
+	for i := 0; i < 10000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), true)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkCuckooRedisLookup100MX4X500X001X1M(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	connOpts.ReadTimeout = time.Hour
+	connOpts.WriteTimeout = time.Hour
+	gostatix.MakeRedisClient(*connOpts)
+	filter, _ := NewCuckooFilterRedisWithErrorRate(100*1000*1000, 4, 500, 0.001)
+	for i := 0; i < 1000000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), true)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
 }
