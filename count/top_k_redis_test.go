@@ -1,9 +1,13 @@
 package count
 
 import (
+	"math/rand"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/kwertop/gostatix"
 )
 
 func TestTopKRedisBasic(t *testing.T) {
@@ -122,5 +126,44 @@ func TestTopKRedisImportExport(t *testing.T) {
 
 	if ok, _ := m.Equals(k); !ok {
 		t.Errorf("topk k and m should be equal")
+	}
+}
+
+func BenchmarkTopKRedisInsert100X1M(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	topk := NewTopKRedis(100, 0.001, 0.999)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		topk.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+}
+
+func BenchmarkTopKRedisValues100X1M(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	topk := NewTopKRedis(100, 0.001, 0.999)
+	for i := 0; i < 1000000; i++ {
+		topk.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		topk.Values()
+	}
+}
+
+func BenchmarkTopKRedisValues10kX1M(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	topk := NewTopKRedis(1000, 0.0001, 0.9999)
+	for i := 0; i < 100000; i++ {
+		topk.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		topk.Values()
 	}
 }

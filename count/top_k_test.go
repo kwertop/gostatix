@@ -2,7 +2,9 @@ package count
 
 import (
 	"bytes"
+	"math/rand"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -198,5 +200,38 @@ func TestTopKBinaryReadWrite(t *testing.T) {
 
 	if ok, _ := k.Equals(l); !ok {
 		t.Error("k and l should be equal")
+	}
+}
+
+func BenchmarkTopKInsert100X1M(b *testing.B) {
+	b.StopTimer()
+	topk := NewTopK(100, 0.001, 0.999)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		topk.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+}
+
+func BenchmarkTopKValues100X1M(b *testing.B) {
+	b.StopTimer()
+	topk := NewTopK(100, 0.001, 0.999)
+	for i := 0; i < 1000000; i++ {
+		topk.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		topk.Values()
+	}
+}
+
+func BenchmarkTopKValues10kX1M(b *testing.B) {
+	b.StopTimer()
+	topk := NewTopK(10000, 0.0001, 0.9999)
+	for i := 0; i < 10000000; i++ {
+		topk.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		topk.Values()
 	}
 }
