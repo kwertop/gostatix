@@ -25,10 +25,10 @@ func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) (*Blo
 	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter}, nil
 }
 
-func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64, redisUrl, key string) (*BloomFilter, error) {
+func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
-	filter := bitset.NewBitSetRedis(size, key)
+	filter := bitset.NewBitSetRedis(size)
 	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter)
 }
 
@@ -39,9 +39,9 @@ func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFi
 	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter)
 }
 
-func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint, key string) (*BloomFilter, error) {
+func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter, error) {
 	size := uint(len(data) * 64)
-	bitSetRedis, err := bitset.FromDataRedis(data, key)
+	bitSetRedis, err := bitset.FromDataRedis(data)
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +55,16 @@ func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
 	hashes := getHashes(data)
-	for i := uint(0); i < bloomFilter.numHashes; i++ {
-		bloomFilter.filter.Insert(bloomFilter.getIndex(hashes, i))
+	if bitset.IsBitSetMem(bloomFilter.filter) {
+		for i := uint(0); i < bloomFilter.numHashes; i++ {
+			bloomFilter.filter.Insert(bloomFilter.getIndex(hashes, i))
+		}
+	} else {
+		indexes := make([]uint, bloomFilter.numHashes)
+		for i := uint(0); i < bloomFilter.numHashes; i++ {
+			indexes[i] = bloomFilter.getIndex(hashes, i)
+		}
+		bloomFilter.filter.InsertMulti(indexes)
 	}
 	return bloomFilter
 }
@@ -85,12 +93,26 @@ func (bloomFilter BloomFilter) GetBitSet() *bitset.IBitSet {
 
 func (bloomFilter BloomFilter) Lookup(data []byte) bool {
 	hashes := getHashes(data)
+	// if bitset.IsBitSetMem(bloomFilter.filter) {
 	for i := uint(0); i < bloomFilter.numHashes; i++ {
 		if ok, _ := bloomFilter.filter.Has(bloomFilter.getIndex(hashes, i)); !ok {
 			return false
 		}
 	}
 	return true
+	// } else {
+	// 	indexes := make([]uint, bloomFilter.numHashes)
+	// 	for i := uint(0); i < bloomFilter.numHashes; i++ {
+	// 		indexes[i] = bloomFilter.getIndex(hashes, i)
+	// 	}
+	// 	result, _ := bloomFilter.filter.HasMulti(indexes)
+	// 	for i := range result {
+	// 		if !result[i] {
+	// 			return false
+	// 		}
+	// 	}
+	// 	return true
+	// }
 }
 
 func (bloomFilter BloomFilter) InsertString(data string) *BloomFilter {
