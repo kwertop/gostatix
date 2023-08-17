@@ -8,7 +8,9 @@ const wordBytes = wordSize / 8
 type IBitSet interface {
 	Size() uint
 	Has(index uint) (bool, error)
+	HasMulti(indexes []uint) ([]bool, error)
 	Insert(index uint) (bool, error)
+	InsertMulti(indexes []uint) (bool, error)
 	Equals(otherBitSet IBitSet) (bool, error)
 	Max() (uint, bool)
 	BitCount() (uint, error)

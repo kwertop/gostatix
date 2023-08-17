@@ -20,7 +20,7 @@ type BitSetRedis struct {
 }
 
 func NewBitSetRedis(size uint) *BitSetRedis {
-	bytes := make([]byte, wordBytes*size)
+	bytes := make([]byte, size)
 	for i := range bytes {
 		bytes[i] = 0x00
 	}
@@ -54,8 +54,45 @@ func (bitSet BitSetRedis) Has(index uint) (bool, error) {
 	return val != 0, nil
 }
 
+func (bitSet BitSetRedis) HasMulti(indexes []uint) ([]bool, error) {
+	if len(indexes) == 0 {
+		return nil, fmt.Errorf("gostatix: at least 1 index is required")
+	}
+	pipe := gostatix.GetRedisClient().Pipeline()
+	ctx := context.Background()
+	values := make([]*redis.IntCmd, len(indexes))
+	for i := range indexes {
+		values[i] = pipe.GetBit(ctx, bitSet.key, int64(indexes[i]))
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]bool, len(values))
+	for i := range values {
+		result[i] = values[i].Val() != 0
+	}
+	return result, nil
+}
+
 func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
 	err := gostatix.GetRedisClient().SetBit(context.Background(), bitSet.key, int64(index), 1).Err()
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (bitSet BitSetRedis) InsertMulti(indexes []uint) (bool, error) {
+	if len(indexes) == 0 {
+		return false, fmt.Errorf("gostatix: at least 1 index is required")
+	}
+	pipe := gostatix.GetRedisClient().Pipeline()
+	ctx := context.Background()
+	for i := range indexes {
+		pipe.SetBit(ctx, bitSet.key, int64(indexes[i]), 1)
+	}
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return false, err
 	}

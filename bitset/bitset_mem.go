@@ -29,6 +29,14 @@ func (bitSet BitSetMem) Has(index uint) (bool, error) {
 	return bitSet.set.Test(index), nil
 }
 
+func (bitSet BitSetMem) HasMulti(indexes []uint) ([]bool, error) {
+	return nil, nil //not implemented
+}
+
+func (bitSet BitSetMem) InsertMulti(indexes []uint) (bool, error) {
+	return false, nil //not implemented
+}
+
 func (bitSet BitSetMem) Insert(index uint) (bool, error) {
 	bitSet.set.Set(index)
 	return true, nil

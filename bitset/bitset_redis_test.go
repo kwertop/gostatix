@@ -25,6 +25,41 @@ func TestBitSetRedisHas(t *testing.T) {
 	}
 }
 
+func TestBitSetRedisInsertMulti(t *testing.T) {
+	mr, _ := miniredis.Run()
+	redisUri := "redis://" + mr.Addr()
+	connOptions, _ := gostatix.ParseRedisURI(redisUri)
+	gostatix.MakeRedisClient(*connOptions)
+	bitset := NewBitSetRedis(4)
+	indexes := []uint{1, 3, 7, 9}
+	bitset.InsertMulti(indexes)
+	if ok, _ := bitset.Has(1); !ok {
+		t.Fatalf("should be true at index 1, got %v", ok)
+	}
+	if ok, _ := bitset.Has(4); ok {
+		t.Fatalf("should be false at index 4, got %v", ok)
+	}
+}
+
+func TestBitSetRedisHasMulti(t *testing.T) {
+	mr, _ := miniredis.Run()
+	redisUri := "redis://" + mr.Addr()
+	connOptions, _ := gostatix.ParseRedisURI(redisUri)
+	gostatix.MakeRedisClient(*connOptions)
+	bitset := NewBitSetRedis(4)
+	bitset.Insert(1)
+	bitset.Insert(3)
+	bitset.Insert(7)
+	bitset.Insert(9)
+	has, _ := bitset.HasMulti([]uint{1, 3, 7, 9})
+	if !has[1] {
+		t.Fatalf("should be true at index 3, got %v", has[1])
+	}
+	if !has[3] {
+		t.Fatalf("should be false at index 9, got %v", has[4])
+	}
+}
+
 func TestBitSetRedisFromData(t *testing.T) {
 	mr, _ := miniredis.Run()
 	redisUri := "redis://" + mr.Addr()
@@ -71,17 +106,17 @@ func TestBitSetRedisExport(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	bitset := NewBitSetRedis(1)
+	bitset := NewBitSetRedis(8)
 	bitset.Insert(1)
 	bitset.Insert(5)
 	bitset.Insert(8)
 	size, data, _ := bitset.Export()
-	str := "\"AAAAAAAAAAEAAAAAAAABIg==\""
-	if size != 1 {
+	str := "\"AAAAAAAAAAgAAAAAAAABIg==\""
+	if size != 8 {
 		t.Fatalf("size of bitset should be 1, got %v", size)
 	}
 	if string(data) != str {
-		t.Fatalf("exported string don't match %v, %v", string(data), str)
+		t.Fatalf("exported string don't match found %v, should be %v", string(data), str)
 	}
 }
 
