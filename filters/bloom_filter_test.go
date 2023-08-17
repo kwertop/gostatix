@@ -3,8 +3,11 @@ package filters
 import (
 	"bytes"
 	"encoding/binary"
+	"math/rand"
+	"strconv"
 	"testing"
 
+	"github.com/kwertop/gostatix"
 	"github.com/kwertop/gostatix/bitset"
 )
 
@@ -16,9 +19,7 @@ func TestFilterSizeError(t *testing.T) {
 	}
 }
 
-func TestFilterWithBitSetMem(t *testing.T) {
-	bitset := bitset.NewBitSetMem(1000)
-	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset)
+func testFilterWithBitset(filter *BloomFilter, t *testing.T) {
 	b1 := []byte("John")
 	b2 := []byte("Jane")
 	b3 := []byte("Alice")
@@ -41,6 +42,19 @@ func TestFilterWithBitSetMem(t *testing.T) {
 	if !ok4 {
 		t.Errorf("%v should be in filter", b3)
 	}
+}
+
+func TestFilterWithBitSetMem(t *testing.T) {
+	bitset := bitset.NewBitSetMem(1000)
+	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset)
+	testFilterWithBitset(filter, t)
+}
+
+func TestFilterWithBitSetRedis(t *testing.T) {
+	initMockRedis()
+	bitset := bitset.NewBitSetRedis(1000)
+	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset)
+	testFilterWithBitset(filter, t)
 }
 
 func TestFilterZeroSizes(t *testing.T) {
@@ -79,9 +93,7 @@ func TestInt32(t *testing.T) {
 	}
 }
 
-func TestStringInFilter(t *testing.T) {
-	bitset := bitset.NewBitSetMem(1000)
-	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset)
+func testStringInFilter(filter *BloomFilter, t *testing.T) {
 	e1 := "This"
 	e2 := "is"
 	e3 := "present"
@@ -106,6 +118,19 @@ func TestStringInFilter(t *testing.T) {
 	if ok4 {
 		t.Errorf("%v should not be in filter", e4)
 	}
+}
+
+func TestStringInMemFilter(t *testing.T) {
+	bitset := bitset.NewBitSetMem(1000)
+	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset)
+	testStringInFilter(filter, t)
+}
+
+func TestStringInRedisFilter(t *testing.T) {
+	initMockRedis()
+	bitset := bitset.NewBitSetRedis(1000)
+	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset)
+	testStringInFilter(filter, t)
 }
 
 func testPositiveRate(nItems uint, errorRate float64, t *testing.T) {
@@ -296,5 +321,77 @@ func TestBitSetMemBinaryReadWrite(t *testing.T) {
 	}
 	if ok4 {
 		t.Errorf("%v should not be in the filter.", "blooms")
+	}
+}
+
+func BenchmarkBloomInsert10kX001(b *testing.B) {
+	b.StopTimer()
+	filter, _ := NewMemBloomFilterWithParameters(10000, 0.001)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkBloomLookup10kX001X1k(b *testing.B) {
+	b.StopTimer()
+	filter, _ := NewMemBloomFilterWithParameters(10000, 0.001)
+	for i := 0; i < 1000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkBloomLookup10BX001X100k(b *testing.B) {
+	b.StopTimer()
+	filter, _ := NewMemBloomFilterWithParameters(10*1000*1000*1000, 0.001)
+	for i := 0; i < 100000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkRedisBloomInsert10kX001(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	filter, _ := NewRedisBloomFilterWithParameters(10000, 0.001)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkRedisBloomLookup10kX001X1k(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	filter, _ := NewRedisBloomFilterWithParameters(10000, 0.001)
+	for i := 0; i < 1000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkRedisBloomLookup10BX001X100k(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	filter, _ := NewRedisBloomFilterWithParameters(100*1000*1000, 0.001)
+	for i := 0; i < 100000; i++ {
+		filter.Insert([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		filter.Lookup([]byte(strconv.FormatUint(rand.Uint64(), 10)))
 	}
 }
