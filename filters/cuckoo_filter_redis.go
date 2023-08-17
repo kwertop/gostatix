@@ -231,12 +231,6 @@ func (filter *CuckooFilterRedis) initBuckets() error {
 		for i=2, tonumber(size)+1 do
 			redis.call("LPUSH", key, KEYS[i])
 		end
-		for i=2, tonumber(size)+1 do
-			local bucketKey = KEYS[i]
-			for j=1, tonumber(bucketSize) do
-				redis.call("LPUSH", bucketKey, "")
-			end
-		end
 		return true
 	`)
 	_, err := initCuckooFilterRedis.Run(

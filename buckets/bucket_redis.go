@@ -52,8 +52,12 @@ func (bucket *BucketRedis) Add(element string) (bool, error) {
 	addElement := redis.NewScript(`
 		local key = KEYS[1]
 		local element = ARGV[1]
-		local pos = redis.call('LPOS', key, '')
-		local reply = redis.call('LSET', key, tonumber(pos), element)
+		local pos = redis.pcall('LPOS', key, '')
+		if pos == false then
+			redis.pcall('LPUSH', key, element)
+		else
+			redis.pcall('LSET', key, tonumber(pos), element)
+		end
 		return true
 	`)
 	_, err := addElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Bool()
