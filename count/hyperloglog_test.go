@@ -3,6 +3,7 @@ package count
 import (
 	"bytes"
 	"math"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"testing"
@@ -118,5 +119,38 @@ func TestHyperLogLogBinaryReadWrite(t *testing.T) {
 
 	if !g.Equals(h) {
 		t.Error("g and h should be equal")
+	}
+}
+
+func BenchmarkHLLUpdate8192(b *testing.B) {
+	b.StopTimer()
+	h, _ := NewHyperLogLog(8192)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		h.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkHLLCount8192(b *testing.B) {
+	b.StopTimer()
+	h, _ := NewHyperLogLog(8192)
+	for i := 0; i < 10000; i++ {
+		h.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		h.Count(true, true)
+	}
+}
+
+func BenchmarkHLLCount65536(b *testing.B) {
+	b.StopTimer()
+	h, _ := NewHyperLogLog(65536)
+	for i := 0; i < 1000000; i++ {
+		h.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		h.Count(true, true)
 	}
 }

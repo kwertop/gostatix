@@ -1,6 +1,8 @@
 package count
 
 import (
+	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -120,4 +122,43 @@ func initMockRedis() {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
+}
+
+func BenchmarkCMSRedisInsert001X0999(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	cms, _ := NewCountMinSketchRedisFromEstimates(0.001, delta)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cms.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+}
+
+func BenchmarkCMSRedisLookup001X0999(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	cms, _ := NewCountMinSketchRedisFromEstimates(0.001, delta)
+	for i := 0; i < 1000; i++ {
+		cms.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cms.Count([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkCMSRedisLookup0001X09999(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	cms, _ := NewCountMinSketchRedisFromEstimates(0.00001, 0.99999)
+	for i := 0; i < 100000; i++ {
+		cms.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cms.Count([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
 }

@@ -2,7 +2,9 @@ package count
 
 import (
 	"bytes"
+	"math/rand"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -154,5 +156,38 @@ func TestCountMinSketchBinaryReadWrite(t *testing.T) {
 	}
 	if c3 != 1 {
 		t.Errorf("count of e3 should be 1, found %d", c3)
+	}
+}
+
+func BenchmarkCMSInsert001X0999(b *testing.B) {
+	b.StopTimer()
+	cms, _ := NewCountMinSketchFromEstimates(0.001, delta)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cms.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+}
+
+func BenchmarkCMSLookup001X0999(b *testing.B) {
+	b.StopTimer()
+	cms, _ := NewCountMinSketchFromEstimates(0.001, delta)
+	for i := 0; i < 1000; i++ {
+		cms.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cms.Count([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkCMSLookup0001X09999(b *testing.B) {
+	b.StopTimer()
+	cms, _ := NewCountMinSketchFromEstimates(0.00001, 0.99999)
+	for i := 0; i < 100000; i++ {
+		cms.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)), 1)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cms.Count([]byte(strconv.FormatUint(rand.Uint64(), 10)))
 	}
 }

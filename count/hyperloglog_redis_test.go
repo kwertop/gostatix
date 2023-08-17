@@ -2,8 +2,11 @@ package count
 
 import (
 	"math"
+	"math/rand"
 	"strconv"
 	"testing"
+
+	"github.com/kwertop/gostatix"
 )
 
 func TestHyperLogLogRedis(t *testing.T) {
@@ -98,5 +101,44 @@ func TestHyperLogLogRedisImportExport(t *testing.T) {
 	ok2, _ := h.Equals(f)
 	if !ok1 || !ok2 {
 		t.Errorf("h, g and f should be same")
+	}
+}
+
+func BenchmarkHLLRedisUpdate8192(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	h, _ := NewHyperLogLogRedis(8192)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		h.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+}
+
+func BenchmarkHLLRedisCount8192(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	h, _ := NewHyperLogLogRedis(8192)
+	for i := 0; i < 10000; i++ {
+		h.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		h.Count(true, true)
+	}
+}
+
+func BenchmarkHLLRedisCount65536(b *testing.B) {
+	b.StopTimer()
+	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+	gostatix.MakeRedisClient(*connOpts)
+	h, _ := NewHyperLogLogRedis(8192)
+	for i := 0; i < 1000000; i++ {
+		h.Update([]byte(strconv.FormatUint(rand.Uint64(), 10)))
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		h.Count(true, true)
 	}
 }

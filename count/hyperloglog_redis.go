@@ -225,9 +225,10 @@ func (h *HyperLogLogRedis) initRegisters() error {
 		local key = KEYS[1]
 		local size = ARGV[1]
 		local registers = {}
-		for i=1, tonumber(size) do
+		for i=1, tonumber(size)/2 do
 			registers[i] = 0
 		end
+		redis.call('LPUSH', key, unpack(registers))
 		redis.call('LPUSH', key, unpack(registers))
 		return true
 	`)
