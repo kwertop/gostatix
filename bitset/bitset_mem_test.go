@@ -94,7 +94,7 @@ func TestBitSetMemNotEqual(t *testing.T) {
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
 	aBitset := NewBitSetMem(0)
-	bBitset := NewBitSetRedis(0, "k")
+	bBitset := NewBitSetRedis(0)
 	if ok, _ := aBitset.Equals(bBitset); ok {
 		t.Fatal("aBitset and bBitset shouldn't be equal")
 	}

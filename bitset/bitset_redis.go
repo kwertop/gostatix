@@ -19,22 +19,23 @@ type BitSetRedis struct {
 	key  string
 }
 
-func NewBitSetRedis(size uint, key string) *BitSetRedis {
+func NewBitSetRedis(size uint) *BitSetRedis {
 	bytes := make([]byte, wordBytes*size)
 	for i := range bytes {
 		bytes[i] = 0x00
 	}
+	key := gostatix.GenerateRandomString(16)
 	_ = gostatix.GetRedisClient().Set(context.Background(), key, string(bytes), 0).Err()
 	return &BitSetRedis{size, key}
 }
 
-func FromDataRedis(data []uint64, key string) (*BitSetRedis, error) {
-	bitSetRedis := NewBitSetRedis(uint(len(data)*64), key)
+func FromDataRedis(data []uint64) (*BitSetRedis, error) {
+	bitSetRedis := NewBitSetRedis(uint(len(data) * 64))
 	bytes, err := uint64ArrayToByteArray(data)
 	if err != nil {
 		return nil, err
 	}
-	err = gostatix.GetRedisClient().Set(context.Background(), key, string(bytes), 0).Err()
+	err = gostatix.GetRedisClient().Set(context.Background(), bitSetRedis.key, string(bytes), 0).Err()
 	if err != nil {
 		return nil, err
 	}

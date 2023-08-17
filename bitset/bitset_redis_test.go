@@ -13,7 +13,7 @@ func TestBitSetRedisHas(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	bitset := NewBitSetRedis(4, "foo")
+	bitset := NewBitSetRedis(4)
 	bitset.Insert(1)
 	bitset.Insert(3)
 	bitset.Insert(7)
@@ -30,7 +30,7 @@ func TestBitSetRedisFromData(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	bitset, _ := FromDataRedis([]uint64{3, 10}, "foo")
+	bitset, _ := FromDataRedis([]uint64{3, 10})
 	if ok, _ := bitset.Has(0); !ok {
 		t.Fatalf("should be true at index 0, got %v", ok)
 	}
@@ -59,7 +59,7 @@ func TestBitSetRedisSetBits(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	bitset, _ := FromDataRedis([]uint64{3, 10}, "foo")
+	bitset, _ := FromDataRedis([]uint64{3, 10})
 	setBits, _ := bitset.BitCount()
 	if setBits != 4 {
 		t.Fatalf("count of set bits should be 4, got %v", setBits)
@@ -71,7 +71,7 @@ func TestBitSetRedisExport(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	bitset := NewBitSetRedis(1, "foo")
+	bitset := NewBitSetRedis(1)
 	bitset.Insert(1)
 	bitset.Insert(5)
 	bitset.Insert(8)
@@ -91,7 +91,7 @@ func TestBitSetRedisImport(t *testing.T) {
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
 	str := "\"AAAAAAAAAAEAAAAAAAABIg==\""
-	bitset := NewBitSetRedis(1, "bar")
+	bitset := NewBitSetRedis(1)
 	ok, _ := bitset.Import([]byte(str))
 	if !ok {
 		t.Fatalf("import failed for %v", str)
@@ -118,7 +118,7 @@ func TestBitSetRedisNotEqual(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	aBitset := NewBitSetRedis(1, "bar")
+	aBitset := NewBitSetRedis(1)
 	bBitset := NewBitSetMem(1)
 	if ok, _ := aBitset.Equals(bBitset); ok {
 		t.Fatal("aBitset and bBitset shouldn't be equal")
@@ -130,10 +130,10 @@ func TestBitSetRedisEqual(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := gostatix.ParseRedisURI(redisUri)
 	gostatix.MakeRedisClient(*connOptions)
-	aBitset := NewBitSetRedis(3, "foo")
+	aBitset := NewBitSetRedis(3)
 	aBitset.Insert(0)
 	aBitset.Insert(1)
-	bBitset := NewBitSetRedis(3, "bar")
+	bBitset := NewBitSetRedis(3)
 	bBitset.Insert(0)
 	bBitset.Insert(1)
 	ok, err := aBitset.Equals(bBitset)
