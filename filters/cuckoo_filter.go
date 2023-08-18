@@ -38,6 +38,9 @@ func NewCuckooFilterWithErrorRate(size, bucketSize, retries uint64, errorRate fl
 }
 
 func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
+	cuckooFilter.lock.Lock()
+	defer cuckooFilter.lock.Unlock()
+
 	fingerPrint, fIndex, sIndex, _ := cuckooFilter.getPositions(data)
 	if cuckooFilter.buckets[fIndex].IsFree() {
 		cuckooFilter.buckets[fIndex].Add(fingerPrint)
@@ -78,12 +81,18 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 }
 
 func (cuckooFilter *CuckooFilter) Lookup(data []byte) bool {
+	cuckooFilter.lock.Lock()
+	defer cuckooFilter.lock.Unlock()
+
 	fingerPrint, fIndex, sIndex, _ := cuckooFilter.getPositions(data)
 	return cuckooFilter.buckets[fIndex].Lookup(fingerPrint) ||
 		cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
 }
 
 func (cuckooFilter *CuckooFilter) Remove(data []byte) bool {
+	cuckooFilter.lock.Lock()
+	defer cuckooFilter.lock.Unlock()
+
 	fingerPrint, fIndex, sIndex, _ := cuckooFilter.getPositions(data)
 	if cuckooFilter.buckets[fIndex].Lookup(fingerPrint) {
 		cuckooFilter.buckets[fIndex].Remove(fingerPrint)
