@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
 
 	"github.com/kwertop/gostatix"
 )
@@ -13,6 +14,7 @@ import (
 type HyperLogLog struct {
 	AbstractHyperLogLog
 	registers []uint8
+	lock      sync.RWMutex
 }
 
 func NewHyperLogLog(numRegisters uint64) (*HyperLogLog, error) {
@@ -21,7 +23,7 @@ func NewHyperLogLog(numRegisters uint64) (*HyperLogLog, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &HyperLogLog{*abstractLog, registers}
+	h := &HyperLogLog{AbstractHyperLogLog: *abstractLog, registers: registers}
 	return h, nil
 }
 
@@ -32,11 +34,17 @@ func (h *HyperLogLog) Reset() {
 }
 
 func (h *HyperLogLog) Update(data []byte) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	registerIndex, count := h.getRegisterIndexAndCount(data)
 	h.registers[registerIndex] = uint8(gostatix.Max(uint(h.registers[registerIndex]), uint(count)))
 }
 
 func (h *HyperLogLog) Count(withCorrection, withRoundingOff bool) uint64 {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	harmonicMean := 0.0
 	for i := range h.registers {
 		harmonicMean += math.Pow(2, -float64(h.registers[i]))

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
 )
 
 type CountMinSketch struct {
 	AbstractCountMinSketch
 	matrix [][]uint64
+	lock   sync.RWMutex
 }
 
 func NewCountMinSketch(rows, columns uint) (*CountMinSketch, error) {
@@ -22,7 +24,7 @@ func NewCountMinSketch(rows, columns uint) (*CountMinSketch, error) {
 	for i := range matrix {
 		matrix[i] = make([]uint64, columns)
 	}
-	sketch := &CountMinSketch{*abstractSketch, matrix}
+	sketch := &CountMinSketch{AbstractCountMinSketch: *abstractSketch, matrix: matrix}
 	return sketch, nil
 }
 
@@ -52,6 +54,9 @@ func (cms *CountMinSketch) Merge(cms1 *CountMinSketch) error {
 }
 
 func (cms *CountMinSketch) Update(data []byte, count uint64) {
+	cms.lock.Lock()
+	defer cms.lock.Unlock()
+
 	for r, c := range cms.getPositions(data) {
 		cms.matrix[r][c] += count
 	}
@@ -63,6 +68,9 @@ func (cms *CountMinSketch) UpdateString(data string, count uint64) {
 }
 
 func (cms *CountMinSketch) Count(data []byte) uint64 {
+	cms.lock.Lock()
+	defer cms.lock.Unlock()
+
 	var min uint64
 	for r, c := range cms.getPositions(data) {
 		if r == 0 || cms.matrix[r][c] < min {
