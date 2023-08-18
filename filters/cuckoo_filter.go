@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"sync"
 
 	"github.com/kwertop/gostatix"
 	"github.com/kwertop/gostatix/buckets"
@@ -14,6 +15,7 @@ import (
 type CuckooFilter struct {
 	buckets []buckets.BucketMem
 	*AbstractCuckooFilter
+	lock sync.RWMutex
 }
 
 func NewCuckooFilter(size, bucketSize, fingerPrintLength uint64) *CuckooFilter {
@@ -26,7 +28,7 @@ func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uin
 		filter[i] = *buckets.NewBucketMem(bucketSize)
 	}
 	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, 0, retries)
-	return &CuckooFilter{filter, baseFilter}
+	return &CuckooFilter{buckets: filter, AbstractCuckooFilter: baseFilter}
 }
 
 func NewCuckooFilterWithErrorRate(size, bucketSize, retries uint64, errorRate float64) *CuckooFilter {
@@ -96,7 +98,7 @@ func (cuckooFilter *CuckooFilter) Remove(data []byte) bool {
 	}
 }
 
-func (aFilter CuckooFilter) Equals(bFilter CuckooFilter) bool {
+func (aFilter *CuckooFilter) Equals(bFilter *CuckooFilter) bool {
 	count := 0
 	result := true
 	for result && count < len(aFilter.buckets) {
@@ -124,7 +126,7 @@ type cuckooFilterMemJSON struct {
 	Buckets           []bucketMemJSON `json:"b"`
 }
 
-func (cuckooFilter CuckooFilter) Export() ([]byte, error) {
+func (cuckooFilter *CuckooFilter) Export() ([]byte, error) {
 	bucketsJSON := make([]bucketMemJSON, cuckooFilter.size)
 	for i := range cuckooFilter.buckets {
 		bucket := cuckooFilter.buckets[i]

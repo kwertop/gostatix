@@ -203,7 +203,7 @@ func TestNotEqualsSize(t *testing.T) {
 	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset)
 	bBitset := bitset.NewBitSetMem(100)
 	bFilter, _ := NewBloomFilterWithBitSet(100, 4, bBitset)
-	if ok, _ := aFilter.Equals(*bFilter); ok {
+	if ok, _ := aFilter.Equals(bFilter); ok {
 		t.Errorf("aFilter and bFilter shouldn't be equal")
 	}
 }
@@ -213,7 +213,7 @@ func TestNotEqualsNumHashes(t *testing.T) {
 	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset)
 	bBitset := bitset.NewBitSetMem(100)
 	bFilter, _ := NewBloomFilterWithBitSet(100, 6, bBitset)
-	if ok, _ := aFilter.Equals(*bFilter); ok {
+	if ok, _ := aFilter.Equals(bFilter); ok {
 		t.Errorf("aFilter and bFilter shouldn't be equal")
 	}
 }
@@ -233,7 +233,7 @@ func TestEquals(t *testing.T) {
 		binary.BigEndian.PutUint32(e, i)
 		bFilter.Insert(e)
 	}
-	if ok, _ := aFilter.Equals(*bFilter); !ok {
+	if ok, _ := aFilter.Equals(bFilter); !ok {
 		t.Errorf("aFilter and bFilter should be equal")
 	}
 }
@@ -302,7 +302,7 @@ func TestBitSetMemBinaryReadWrite(t *testing.T) {
 	bFilter := &BloomFilter{}
 	bFilter.ReadFrom(&buff)
 
-	if ok, _ := aFilter.Equals(*bFilter); !ok {
+	if ok, _ := aFilter.Equals(bFilter); !ok {
 		t.Error("aFilter and bFilter should be equal")
 	}
 

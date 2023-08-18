@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
 
 	"github.com/dgryski/go-metro"
 	"github.com/kwertop/gostatix"
@@ -16,13 +17,14 @@ type BloomFilter struct {
 	size      uint
 	numHashes uint
 	filter    bitset.IBitSet
+	lock      sync.RWMutex
 }
 
 func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) (*BloomFilter, error) {
 	if filter.Size() != size {
 		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
 	}
-	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter}, nil
+	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: filter}, nil
 }
 
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
@@ -45,15 +47,18 @@ func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter,
 	if err != nil {
 		return nil, err
 	}
-	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), bitSetRedis}, nil
+	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: bitSetRedis}, nil
 }
 
 func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 	size := uint(len(data) * 64)
-	return &BloomFilter{gostatix.Max(size, 1), gostatix.Max(numHashes, 1), bitset.FromDataMem(data)}
+	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: bitset.FromDataMem(data)}
 }
 
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
+	bloomFilter.lock.Lock()
+	defer bloomFilter.lock.Unlock()
+
 	hashes := getHashes(data)
 	if bitset.IsBitSetMem(bloomFilter.filter) {
 		for i := uint(0); i < bloomFilter.numHashes; i++ {
@@ -74,24 +79,27 @@ func getHashes(data []byte) [2]uint64 {
 	return [2]uint64{hash1, hash2}
 }
 
-func (bloomFilter BloomFilter) getIndex(hashes [2]uint64, i uint) uint {
+func (bloomFilter *BloomFilter) getIndex(hashes [2]uint64, i uint) uint {
 	j := uint64(i)
 	return uint(math.Abs(float64((hashes[0] + j*hashes[1] + uint64(math.Floor(float64(math.Pow(float64(j), 3)-float64(j))/6))) % uint64(bloomFilter.size))))
 }
 
-func (bloomFilter BloomFilter) GetCap() uint {
+func (bloomFilter *BloomFilter) GetCap() uint {
 	return bloomFilter.size
 }
 
-func (bloomFilter BloomFilter) GetNumHashes() uint {
+func (bloomFilter *BloomFilter) GetNumHashes() uint {
 	return bloomFilter.numHashes
 }
 
-func (bloomFilter BloomFilter) GetBitSet() *bitset.IBitSet {
+func (bloomFilter *BloomFilter) GetBitSet() *bitset.IBitSet {
 	return &bloomFilter.filter
 }
 
-func (bloomFilter BloomFilter) Lookup(data []byte) bool {
+func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
+	bloomFilter.lock.Lock()
+	defer bloomFilter.lock.Unlock()
+
 	hashes := getHashes(data)
 	// if bitset.IsBitSetMem(bloomFilter.filter) {
 	for i := uint(0); i < bloomFilter.numHashes; i++ {
@@ -115,20 +123,26 @@ func (bloomFilter BloomFilter) Lookup(data []byte) bool {
 	// }
 }
 
-func (bloomFilter BloomFilter) InsertString(data string) *BloomFilter {
+func (bloomFilter *BloomFilter) InsertString(data string) *BloomFilter {
+	bloomFilter.lock.Lock()
+	defer bloomFilter.lock.Unlock()
+
 	return bloomFilter.Insert([]byte(data))
 }
 
-func (bloomFilter BloomFilter) LookupString(data string) bool {
+func (bloomFilter *BloomFilter) LookupString(data string) bool {
+	bloomFilter.lock.Lock()
+	defer bloomFilter.lock.Unlock()
+
 	return bloomFilter.Lookup([]byte(data))
 }
 
-func (bloomFilter BloomFilter) BloomPositiveRate() float64 {
+func (bloomFilter *BloomFilter) BloomPositiveRate() float64 {
 	length, _ := bloomFilter.filter.BitCount()
 	return math.Pow(1-math.Exp(-float64(length)/float64(bloomFilter.size)), float64(bloomFilter.numHashes))
 }
 
-func (aFilter BloomFilter) Equals(bFilter BloomFilter) (bool, error) {
+func (aFilter *BloomFilter) Equals(bFilter *BloomFilter) (bool, error) {
 	if aFilter.size != bFilter.size || aFilter.numHashes != bFilter.numHashes {
 		return false, nil
 	}

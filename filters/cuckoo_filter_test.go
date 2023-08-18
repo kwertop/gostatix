@@ -247,7 +247,7 @@ func TestCuckooEquals(t *testing.T) {
 	filter2.Insert([]byte("one"), false)
 	filter2.Insert([]byte("two"), false)
 	filter2.Insert([]byte("three"), false)
-	if !filter1.Equals(*filter2) {
+	if !filter1.Equals(filter2) {
 		t.Error("filter1 and filter2 should be same")
 	}
 }
@@ -278,7 +278,7 @@ func TestCuckooMarshalUnmarshal(t *testing.T) {
 	if ok {
 		t.Error("\"five\" should not be in filter3")
 	}
-	if !filter1.Equals(*filter3) || !filter2.Equals(*filter3) {
+	if !filter1.Equals(filter3) || !filter2.Equals(filter3) {
 		t.Errorf("filter1, filter2 and filter3 are same")
 	}
 }
@@ -302,7 +302,7 @@ func TestCuckooBinaryReadWrite(t *testing.T) {
 		t.Error("should not error out in reading from buffer")
 	}
 
-	if !filter1.Equals(*filter2) {
+	if !filter1.Equals(filter2) {
 		t.Errorf("filter1 and filter2 should be same")
 	}
 
