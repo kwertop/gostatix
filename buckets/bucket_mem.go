@@ -8,25 +8,33 @@ import (
 
 type BucketMem struct {
 	elements []string
+	length   uint64
 	*AbstractBucket
 }
 
 func NewBucketMem(size uint64) *BucketMem {
 	bucket := &AbstractBucket{}
 	bucket.size = size
-	bucket.length = 0
-	return &BucketMem{make([]string, size), bucket}
+	return &BucketMem{make([]string, size), 0, bucket}
 }
 
-func (bucket BucketMem) Elements() []string {
+func (bucket *BucketMem) Length() uint64 {
+	return bucket.length
+}
+
+func (bucket *BucketMem) IsFree() bool {
+	return bucket.length < bucket.size
+}
+
+func (bucket *BucketMem) Elements() []string {
 	return bucket.elements
 }
 
-func (bucket BucketMem) NextSlot() int64 {
+func (bucket *BucketMem) NextSlot() int64 {
 	return bucket.indexOf("")
 }
 
-func (bucket BucketMem) At(index uint64) string {
+func (bucket *BucketMem) At(index uint64) string {
 	return bucket.elements[index]
 }
 
@@ -39,7 +47,7 @@ func (bucket *BucketMem) Add(element string) bool {
 	return true
 }
 
-func (bucket BucketMem) Remove(element string) bool {
+func (bucket *BucketMem) Remove(element string) bool {
 	index := bucket.indexOf(element)
 	if index <= -1 {
 		return false
@@ -48,11 +56,11 @@ func (bucket BucketMem) Remove(element string) bool {
 	return true
 }
 
-func (bucket BucketMem) Lookup(element string) bool {
+func (bucket *BucketMem) Lookup(element string) bool {
 	return bucket.indexOf(element) > -1
 }
 
-func (bucket BucketMem) Set(index uint64, element string) {
+func (bucket *BucketMem) Set(index uint64, element string) {
 	bucket.elements[index] = element
 }
 
@@ -67,7 +75,7 @@ func (bucket *BucketMem) Swap(index uint64, element string) string {
 	return temp
 }
 
-func (bucket BucketMem) Equals(otherBucket BucketMem) bool {
+func (bucket *BucketMem) Equals(otherBucket *BucketMem) bool {
 	if bucket.size != otherBucket.size || bucket.length != otherBucket.length {
 		return false
 	}

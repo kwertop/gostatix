@@ -90,12 +90,12 @@ func TestBucketMemEquals(t *testing.T) {
 	b2.Add("foo")
 	b2.Add("bar")
 	b2.Add("baz")
-	ok := b1.Equals(*b2)
+	ok := b1.Equals(b2)
 	if !ok {
 		t.Error("b1 and b2 should be equal")
 	}
 	b2.Remove("foo")
-	ok = b1.Equals(*b2)
+	ok = b1.Equals(b2)
 	if ok {
 		t.Error("b1 and b2 shouldn't be equal here")
 	}
@@ -119,7 +119,7 @@ func TestBucketMemBinaryReadWrite(t *testing.T) {
 		t.Error("should not error out in reading from buffer")
 	}
 
-	ok := b1.Equals(*b2)
+	ok := b1.Equals(b2)
 	if !ok {
 		t.Error("b1 and b2 should be equal")
 	}
@@ -137,7 +137,7 @@ func TestBucketMemBinaryReadWrite(t *testing.T) {
 	}
 
 	b2.Remove("foo")
-	ok = b1.Equals(*b2)
+	ok = b1.Equals(b2)
 	if ok {
 		t.Error("b1 and b2 shouldn't be equal here")
 	}

@@ -16,11 +16,34 @@ type BucketRedis struct {
 func NewBucketRedis(key string, size uint64) *BucketRedis {
 	bucket := &AbstractBucket{}
 	bucket.size = size
-	bucket.length = 0
-	return &BucketRedis{key, bucket}
+	bucketRedis := &BucketRedis{}
+	bucketRedis.key = key
+	bucketRedis.AbstractBucket = bucket
+	bucketRedis.incrLength()
+	return bucketRedis
 }
 
-func (bucket BucketRedis) Elements() ([]string, error) {
+func (bucket *BucketRedis) Length() uint64 {
+	val, _ := gostatix.GetRedisClient().Get(context.Background(), bucket.key+"len").Int64()
+	return uint64(val)
+}
+
+func (bucket *BucketRedis) IsFree() bool {
+	isFreeScript := redis.NewScript(`
+		local key = KEYS[1]
+		local lenKey = key .. 'len'
+		local bucketLength = redis.pcall('GET', lenKey)
+		local size = ARGV[1]
+		if tonumber(bucketLength) >= tonumber(size) then
+			return false
+		end
+		return true
+	`)
+	val, _ := isFreeScript.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, bucket.size).Bool()
+	return val
+}
+
+func (bucket *BucketRedis) Elements() ([]string, error) {
 	elements, err := gostatix.GetRedisClient().LRange(context.Background(), bucket.key, 0, -1).Result()
 	if err != nil {
 		return nil, fmt.Errorf("gostatix: error while fetching list values from redis, key: %s, error: %v", bucket.key, err)
@@ -28,7 +51,7 @@ func (bucket BucketRedis) Elements() ([]string, error) {
 	return elements, nil
 }
 
-func (bucket BucketRedis) NextSlot() (int64, error) {
+func (bucket *BucketRedis) NextSlot() (int64, error) {
 	lPosArgs := redis.LPosArgs{Rank: 1, MaxLen: 0}
 	pos, err := gostatix.GetRedisClient().LPos(context.Background(), bucket.key, "", lPosArgs).Result()
 	if err != nil {
@@ -37,7 +60,7 @@ func (bucket BucketRedis) NextSlot() (int64, error) {
 	return pos, nil
 }
 
-func (bucket BucketRedis) At(index uint64) (string, error) {
+func (bucket *BucketRedis) At(index uint64) (string, error) {
 	val, err := gostatix.GetRedisClient().LIndex(context.Background(), bucket.key, int64(index)).Result()
 	if err != nil {
 		return "", fmt.Errorf("gostatix: error while fetching value at index: %v", err)
@@ -46,11 +69,17 @@ func (bucket BucketRedis) At(index uint64) (string, error) {
 }
 
 func (bucket *BucketRedis) Add(element string) (bool, error) {
-	if element == "" || !bucket.IsFree() {
+	if element == "" {
 		return false, nil
 	}
 	addElement := redis.NewScript(`
 		local key = KEYS[1]
+		local lenKey = key .. 'len'
+		local bucketLength = redis.pcall('GET', lenKey)
+		local size = ARGV[2]
+		if tonumber(bucketLength) >= tonumber(size) then
+			return false
+		end
 		local element = ARGV[1]
 		local pos = redis.pcall('LPOS', key, '')
 		if pos == false then
@@ -58,33 +87,37 @@ func (bucket *BucketRedis) Add(element string) (bool, error) {
 		else
 			redis.pcall('LSET', key, tonumber(pos), element)
 		end
+		redis.pcall('INCRBY', lenKey, 1)
 		return true
 	`)
-	_, err := addElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Bool()
+	val, err := addElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element, bucket.size).Bool()
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while adding element %s, error: %v", element, err)
 	}
-	bucket.length++
+	if !val {
+		return val, fmt.Errorf("bucket is full")
+	}
 	return true, nil
 }
 
 func (bucket *BucketRedis) Remove(element string) (bool, error) {
 	removeElement := redis.NewScript(`
 		local key = KEYS[1]
+		local lenKey = key .. 'len'
 		local element = ARGV[1]
 		local pos = redis.call('LPOS', key, element)
 		redis.call('LSET', key, pos, '')
+		redis.pcall('INCRBY', lenKey, -1)
 		return true
 	`)
 	_, err := removeElement.Run(context.Background(), gostatix.GetRedisClient(), []string{bucket.key}, element).Bool()
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while removing element %s, error: %v", element, err)
 	}
-	bucket.length--
 	return true, nil
 }
 
-func (bucket BucketRedis) Lookup(element string) (bool, error) {
+func (bucket *BucketRedis) Lookup(element string) (bool, error) {
 	//Redis returns nil if an element doesn't exist in the list
 	//While Golang Redis LPos command returns 0 for non-existent element inside the list with error set as "redis: nil"
 	//This becomes confusing for the index of the first element in the list and non-existent values
@@ -105,7 +138,7 @@ func (bucket BucketRedis) Lookup(element string) (bool, error) {
 	return pos > -1, nil
 }
 
-func (bucket BucketRedis) Set(index uint64, element string) error {
+func (bucket *BucketRedis) Set(index uint64, element string) error {
 	_, err := gostatix.GetRedisClient().LSet(context.Background(), bucket.key, int64(index), element).Result()
 	if err != nil {
 		return fmt.Errorf("gostatix: error while setting element %s at index %d, error: %v", element, index, err)
@@ -119,13 +152,12 @@ func (bucket *BucketRedis) UnSet(index uint64) error {
 	if err != nil {
 		return fmt.Errorf("gostatix: error while unsetting index %d, error: %v", index, err)
 	} else {
-		bucket.length--
 		return nil
 	}
 }
 
 func (bucket *BucketRedis) Equals(otherBucket *BucketRedis) (bool, error) {
-	if bucket.size != otherBucket.size || bucket.length != otherBucket.length {
+	if bucket.size != otherBucket.size {
 		return false, nil
 	}
 	equals := redis.NewScript(`
@@ -146,4 +178,8 @@ func (bucket *BucketRedis) Equals(otherBucket *BucketRedis) (bool, error) {
 		return false, fmt.Errorf("gostatix: error while comparing list %s with %s, error: %v", bucket.key, otherBucket.key, err)
 	}
 	return ok, nil
+}
+
+func (bucket *BucketRedis) incrLength() {
+	gostatix.GetRedisClient().IncrBy(context.Background(), bucket.key+"len", 0).Err()
 }
