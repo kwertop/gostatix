@@ -104,6 +104,21 @@ func TestHyperLogLogRedisImportExport(t *testing.T) {
 	}
 }
 
+func TestHyperLogLogRedisFromKey(t *testing.T) {
+	initMockRedis()
+	h, _ := NewHyperLogLogRedis(32)
+
+	h.Update([]byte("john"))
+	h.Update([]byte("jane"))
+
+	g, _ := NewHyperLogLogRedisFromKey(h.MetadataKey())
+
+	ok, _ := h.Equals(g)
+	if !ok {
+		t.Errorf("h and g should be equal")
+	}
+}
+
 func BenchmarkHLLRedisUpdate8192(b *testing.B) {
 	b.StopTimer()
 	connOpts, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")

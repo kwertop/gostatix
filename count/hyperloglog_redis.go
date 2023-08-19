@@ -12,7 +12,8 @@ import (
 
 type HyperLogLogRedis struct {
 	AbstractHyperLogLog
-	key string
+	key         string
+	metadataKey string
 }
 
 func NewHyperLogLogRedis(numRegisters uint64) (*HyperLogLogRedis, error) {
@@ -21,12 +22,38 @@ func NewHyperLogLogRedis(numRegisters uint64) (*HyperLogLogRedis, error) {
 		return nil, err
 	}
 	key := gostatix.GenerateRandomString(16)
-	h := &HyperLogLogRedis{*abstractLog, key}
+	metadataKey := gostatix.GenerateRandomString(16)
+	h := &HyperLogLogRedis{*abstractLog, key, metadataKey}
+	metadata := make(map[string]interface{})
+	metadata["numRegisters"] = h.numRegisters
+	metadata["key"] = h.key
+	err = gostatix.GetRedisClient().HSet(context.Background(), h.metadataKey, metadata).Err()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error creating count min sketch redis, error: %v", err)
+	}
 	err = h.initRegisters()
 	if err != nil {
 		return nil, err
 	}
 	return h, nil
+}
+
+func NewHyperLogLogRedisFromKey(metadataKey string) (*HyperLogLogRedis, error) {
+	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error creating hyeprloglog from redis key, error: %v", err)
+	}
+	numRegisters, _ := strconv.Atoi(values["numRegisters"])
+	abstractLog, err := MakeAbstractHyperLogLog(uint64(numRegisters))
+	if err != nil {
+		return nil, err
+	}
+	h := &HyperLogLogRedis{*abstractLog, values["key"], metadataKey}
+	return h, nil
+}
+
+func (h *HyperLogLogRedis) MetadataKey() string {
+	return h.metadataKey
 }
 
 func (h *HyperLogLogRedis) Update(data []byte) error {
