@@ -1,3 +1,8 @@
+/*
+Package bitset implements bitsets - both in-memory and redis.
+For in-memory, https://github.com/bits-and-blooms/bitset is used while
+for redis, bitset operations of redis are used.
+*/
 package bitset
 
 import (
@@ -14,11 +19,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// BitSetRedis is an implementation of IBitSet.
+// size is the number of bits in the bitset
+// key is the redis key to the bitset data structure in redis
+// Bitsets or Bitmaps are implemented in Redis using string.
+// All bit operations are done on the string stored at _key_.
+// For more details, please refer https://redis.io/docs/data-types/bitmaps/
 type BitSetRedis struct {
 	size uint
 	key  string
 }
 
+// NewBitSetRedis creates a new BitSetRedis of size _size_
 func NewBitSetRedis(size uint) *BitSetRedis {
 	bytes := make([]byte, size)
 	for i := range bytes {
@@ -29,6 +41,8 @@ func NewBitSetRedis(size uint) *BitSetRedis {
 	return &BitSetRedis{size, key}
 }
 
+// FromDataRedis creates an instance of BitSetRedis after
+// inserting the data passed in a redis bitset
 func FromDataRedis(data []uint64) (*BitSetRedis, error) {
 	bitSetRedis := NewBitSetRedis(uint(len(data) * wordSize))
 	bytes, err := uint64ArrayToByteArray(data)
@@ -42,6 +56,8 @@ func FromDataRedis(data []uint64) (*BitSetRedis, error) {
 	return bitSetRedis, nil
 }
 
+// FromRedisKey creates an instance of BitSetRedis from the
+// bitset data structure saved at redis key _key_
 func FromRedisKey(key string) (*BitSetRedis, error) {
 	setVal, err := gostatix.GetRedisClient().Get(context.Background(), key).Result()
 	if err != nil {
@@ -53,14 +69,17 @@ func FromRedisKey(key string) (*BitSetRedis, error) {
 	return bitSetRedis, nil
 }
 
+// Size returns the size of the bitset saved in redis
 func (bitSet BitSetRedis) Size() uint {
 	return bitSet.size
 }
 
+// Key gives the key at which the bitset is saved in redis
 func (bitSet BitSetRedis) Key() string {
 	return bitSet.key
 }
 
+// Has checks if the bit at index _index_ is set
 func (bitSet BitSetRedis) Has(index uint) (bool, error) {
 	val, err := gostatix.GetRedisClient().GetBit(context.Background(), bitSet.key, int64(index)).Result()
 	if err != nil {
@@ -69,6 +88,8 @@ func (bitSet BitSetRedis) Has(index uint) (bool, error) {
 	return val != 0, nil
 }
 
+// HasMulti checks if the bit at the indices
+// specified by _indexes_ array is set
 func (bitSet BitSetRedis) HasMulti(indexes []uint) ([]bool, error) {
 	if len(indexes) == 0 {
 		return nil, fmt.Errorf("gostatix: at least 1 index is required")
@@ -90,6 +111,7 @@ func (bitSet BitSetRedis) HasMulti(indexes []uint) ([]bool, error) {
 	return result, nil
 }
 
+// Insert sets the bit at index specified by _index_
 func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
 	err := gostatix.GetRedisClient().SetBit(context.Background(), bitSet.key, int64(index), 1).Err()
 	if err != nil {
@@ -98,6 +120,7 @@ func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
 	return true, nil
 }
 
+// Insert sets the bits at indices specified by array _indexes_
 func (bitSet BitSetRedis) InsertMulti(indexes []uint) (bool, error) {
 	if len(indexes) == 0 {
 		return false, fmt.Errorf("gostatix: at least 1 index is required")
@@ -114,6 +137,7 @@ func (bitSet BitSetRedis) InsertMulti(indexes []uint) (bool, error) {
 	return true, nil
 }
 
+// Equals checks if two BitSetRedis are equal or not
 func (aSet BitSetRedis) Equals(otherBitSet IBitSet) (bool, error) {
 	bSet, ok := otherBitSet.(*BitSetRedis)
 	if !ok {
@@ -130,6 +154,7 @@ func (aSet BitSetRedis) Equals(otherBitSet IBitSet) (bool, error) {
 	return aSetVal == bSetVal, nil
 }
 
+// Max returns the first set bit in the bitset starting from index 0
 func (bitSet BitSetRedis) Max() (uint, bool) {
 	index, err := gostatix.GetRedisClient().BitPos(context.Background(), bitSet.key, 1).Result()
 	if err != nil || index == -1 {
@@ -138,6 +163,7 @@ func (bitSet BitSetRedis) Max() (uint, bool) {
 	return uint(index), true
 }
 
+// BitCount returns the total number of set bits in the bitset saved in redis
 func (bitSet BitSetRedis) BitCount() (uint, error) {
 	bitRange := &redis.BitCount{Start: 0, End: -1}
 	val, err := gostatix.GetRedisClient().BitCount(context.Background(), bitSet.key, bitRange).Result()
@@ -147,6 +173,7 @@ func (bitSet BitSetRedis) BitCount() (uint, error) {
 	return uint(val), nil
 }
 
+// Export returns the json marshalling of the bitset saved in redis
 func (bitSet BitSetRedis) Export() (uint, []byte, error) {
 	val, err := gostatix.GetRedisClient().Get(context.Background(), bitSet.key).Result()
 	if err != nil {
@@ -167,6 +194,7 @@ func (bitSet BitSetRedis) Export() (uint, []byte, error) {
 	return bitSet.size, data, nil
 }
 
+// Import imports the marshalled json in the byte array data into the redis bitset
 func (bitSet *BitSetRedis) Import(data []byte) (bool, error) {
 	var s string
 	err := json.Unmarshal(data, &s)
