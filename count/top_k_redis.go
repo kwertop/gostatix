@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/kwertop/gostatix"
@@ -12,17 +13,43 @@ import (
 )
 
 type TopKRedis struct {
-	k         uint
-	errorRate float64
-	accuracy  float64
-	sketch    *CountMinSketchRedis
-	heapKey   string
+	k           uint
+	errorRate   float64
+	accuracy    float64
+	sketch      *CountMinSketchRedis
+	heapKey     string
+	metadataKey string
 }
 
 func NewTopKRedis(k uint, errorRate, accuracy float64) *TopKRedis {
 	sketch, _ := NewCountMinSketchRedisFromEstimates(errorRate, accuracy)
 	heapKey := gostatix.GenerateRandomString(16)
-	return &TopKRedis{k, errorRate, accuracy, sketch, heapKey}
+	metadataKey := gostatix.GenerateRandomString(16)
+	metadata := make(map[string]interface{})
+	metadata["k"] = k
+	metadata["heapKey"] = heapKey
+	metadata["errorRate"] = errorRate
+	metadata["accuracy"] = accuracy
+	metadata["sketchKey"] = sketch.MetadataKey()
+	err := gostatix.GetRedisClient().HSet(context.Background(), metadataKey, metadata).Err()
+	if err != nil {
+		return nil
+	}
+	return &TopKRedis{k, errorRate, accuracy, sketch, heapKey, metadataKey}
+}
+
+func NewTopKRedisFromKey(metadataKey string) *TopKRedis {
+	values, _ := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
+	k, _ := strconv.ParseUint(values["k"], 10, 32)
+	errorRate, _ := strconv.ParseFloat(values["errorRate"], 64)
+	accuracy, _ := strconv.ParseFloat(values["accuracy"], 64)
+	sketch, _ := NewCountMinSketchRedisFromKey(values["sketchKey"])
+	heapKey := values["heapKey"]
+	return &TopKRedis{uint(k), errorRate, accuracy, sketch, heapKey, metadataKey}
+}
+
+func (t *TopKRedis) MetadataKey() string {
+	return t.metadataKey
 }
 
 func (t *TopKRedis) Insert(data []byte, count uint64) error {

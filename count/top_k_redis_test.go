@@ -104,6 +104,23 @@ func TestTopKRedisEquals(t *testing.T) {
 	}
 }
 
+func TestTopKRedisImportKey(t *testing.T) {
+	initMockRedis()
+	errorRate := 0.001
+	delta := 0.999
+
+	k := NewTopKRedis(10, errorRate, delta)
+	for i := 0; i < 10; i++ {
+		k.Insert([]byte(items[i]), 1)
+	}
+
+	l := NewTopKRedisFromKey(k.MetadataKey())
+
+	if ok, _ := l.Equals(k); !ok {
+		t.Errorf("topk k and l should be equal")
+	}
+}
+
 func TestTopKRedisImportExport(t *testing.T) {
 	initMockRedis()
 	errorRate := 0.1
