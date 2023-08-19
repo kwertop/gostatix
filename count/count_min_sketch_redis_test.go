@@ -117,6 +117,24 @@ func TestCountMinSketchRedisImportExport(t *testing.T) {
 	}
 }
 
+func TestCountMinSketchRedisImportFromKey(t *testing.T) {
+	initMockRedis()
+	cms1, _ := NewCountMinSketchRedisFromEstimates(0.001, delta)
+
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("foo", 1)
+	cms1.UpdateString("baz", 1)
+
+	key := cms1.MetadataKey()
+	cms2, _ := NewCountMinSketchRedisFromKey(key)
+
+	ok, _ := cms1.Equals(cms2)
+	if !ok {
+		t.Errorf("cms1 and cms3 should be equal")
+	}
+}
+
 func initMockRedis() {
 	mr, _ := miniredis.Run()
 	redisUri := "redis://" + mr.Addr()

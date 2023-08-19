@@ -14,7 +14,8 @@ import (
 
 type CountMinSketchRedis struct {
 	AbstractCountMinSketch
-	key string
+	key         string
+	metadataKey string
 }
 
 func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
@@ -23,8 +24,33 @@ func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 	}
 	abstractSketch := MakeAbstractCountMinSketch(rows, columns, 0)
 	key := gostatix.GenerateRandomString(16)
-	sketch := &CountMinSketchRedis{*abstractSketch, key}
+	metadataKey := gostatix.GenerateRandomString(16)
+	sketch := &CountMinSketchRedis{*abstractSketch, key, metadataKey}
+	metadata := make(map[string]interface{})
+	metadata["rows"] = sketch.rows
+	metadata["columns"] = sketch.columns
+	metadata["key"] = sketch.key
+	err := gostatix.GetRedisClient().HSet(context.Background(), sketch.metadataKey, metadata).Err()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error creating count min sketch redis, error: %v", err)
+	}
 	sketch.initMatrix()
+	return sketch, nil
+}
+
+func NewCountMinSketchRedisFromKey(metadataKey string) (*CountMinSketchRedis, error) {
+	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error creating count min sketch from redis key, error: %v", err)
+	}
+	rows, _ := strconv.Atoi(values["rows"])
+	columns, _ := strconv.Atoi(values["columns"])
+	if rows <= 0 || columns <= 0 {
+		return nil, fmt.Errorf("gostatix: error creating count min sketch from redis key")
+	}
+	key := values["key"]
+	abstractSketch := MakeAbstractCountMinSketch(uint(rows), uint(columns), 0)
+	sketch := &CountMinSketchRedis{*abstractSketch, key, metadataKey}
 	return sketch, nil
 }
 
@@ -110,6 +136,10 @@ func (cms *CountMinSketchRedis) Count(data []byte) (uint64, error) {
 
 func (cms *CountMinSketchRedis) CountString(data string) (uint64, error) {
 	return cms.Count([]byte(data))
+}
+
+func (cms *CountMinSketchRedis) MetadataKey() string {
+	return cms.metadataKey
 }
 
 func (cms *CountMinSketchRedis) Merge(cms1 *CountMinSketchRedis) error {
