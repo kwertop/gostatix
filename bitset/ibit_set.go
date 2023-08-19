@@ -2,7 +2,7 @@ package bitset
 
 import "io"
 
-const wordSize = uint(64)
+const wordSize = int(64)
 const wordBytes = wordSize / 8
 
 type IBitSet interface {

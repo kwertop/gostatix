@@ -30,7 +30,7 @@ func NewBitSetRedis(size uint) *BitSetRedis {
 }
 
 func FromDataRedis(data []uint64) (*BitSetRedis, error) {
-	bitSetRedis := NewBitSetRedis(uint(len(data) * 64))
+	bitSetRedis := NewBitSetRedis(uint(len(data) * wordSize))
 	bytes, err := uint64ArrayToByteArray(data)
 	if err != nil {
 		return nil, err
@@ -42,8 +42,23 @@ func FromDataRedis(data []uint64) (*BitSetRedis, error) {
 	return bitSetRedis, nil
 }
 
+func FromRedisKey(key string) (*BitSetRedis, error) {
+	setVal, err := gostatix.GetRedisClient().Get(context.Background(), key).Result()
+	if err != nil {
+		return nil, err
+	}
+	setValBytes := []byte(setVal)
+	bitSetRedis := NewBitSetRedis(uint(len(setValBytes) * wordBytes))
+	bitSetRedis.key = key
+	return bitSetRedis, nil
+}
+
 func (bitSet BitSetRedis) Size() uint {
 	return bitSet.size
+}
+
+func (bitSet BitSetRedis) Key() string {
+	return bitSet.key
 }
 
 func (bitSet BitSetRedis) Has(index uint) (bool, error) {

@@ -1,11 +1,13 @@
 package filters
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"sync"
 
 	"github.com/dgryski/go-metro"
@@ -14,45 +16,86 @@ import (
 )
 
 type BloomFilter struct {
-	size      uint
-	numHashes uint
-	filter    bitset.IBitSet
-	lock      sync.RWMutex
+	size        uint
+	numHashes   uint
+	filter      bitset.IBitSet
+	metadataKey string
+	lock        sync.RWMutex
 }
 
-func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet) (*BloomFilter, error) {
+func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet, metadataKey string) (*BloomFilter, error) {
 	if filter.Size() != size {
 		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
 	}
-	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: filter}, nil
+	return &BloomFilter{
+		size:        gostatix.Max(size, 1),
+		numHashes:   gostatix.Max(numHashes, 1),
+		filter:      filter,
+		metadataKey: metadataKey,
+	}, nil
 }
 
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetRedis(size)
-	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter)
+	metadataKey := gostatix.GenerateRandomString(16)
+	metadata := make(map[string]interface{})
+	metadata["size"] = size
+	metadata["numHashes"] = numHashes
+	metadata["bitsetKey"] = filter.Key()
+	err := gostatix.GetRedisClient().HSet(context.Background(), metadataKey, metadata).Err()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error while creating bloom filter redis. error: %v", err)
+	}
+	return NewBloomFilterWithBitSet(size, numHashes, filter, metadataKey)
 }
 
 func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetMem(size)
-	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter)
+	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter, "")
 }
 
 func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter, error) {
-	size := uint(len(data) * 64)
+	size := gostatix.Max(uint(len(data)*64), 1)
+	numHashes = gostatix.Max(numHashes, 1)
+	metadataKey := gostatix.GenerateRandomString(16)
+	err := gostatix.GetRedisClient().HSet(context.Background(), metadataKey, map[string]interface{}{"size": size, "numHashes": numHashes}).Err()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error while creating bloom filter redis. error: %v", err)
+	}
 	bitSetRedis, err := bitset.FromDataRedis(data)
 	if err != nil {
 		return nil, err
 	}
-	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: bitSetRedis}, nil
+	return &BloomFilter{
+		size:      size,
+		numHashes: numHashes,
+		filter:    bitSetRedis,
+	}, nil
 }
 
 func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 	size := uint(len(data) * 64)
 	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: bitset.FromDataMem(data)}
+}
+
+func NewRedisBloomFilterFromKey(metadataKey string) (*BloomFilter, error) {
+	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error while fetching hash from redis, error: %v", err)
+	}
+	bloomFilter := &BloomFilter{}
+	size, _ := strconv.Atoi(values["size"])
+	numHashes, _ := strconv.Atoi(values["numHashes"])
+	bloomFilter.size = uint(size)
+	bloomFilter.numHashes = uint(numHashes)
+	bitsetKey := values["bitsetKey"]
+	filter, _ := bitset.FromRedisKey(bitsetKey)
+	bloomFilter.filter = filter
+	return bloomFilter, nil
 }
 
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
@@ -96,6 +139,10 @@ func (bloomFilter *BloomFilter) GetBitSet() *bitset.IBitSet {
 	return &bloomFilter.filter
 }
 
+func (bloomFilter *BloomFilter) GetMetadataKey() string {
+	return bloomFilter.metadataKey
+}
+
 func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
 	bloomFilter.lock.Lock()
 	defer bloomFilter.lock.Unlock()
@@ -124,16 +171,10 @@ func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
 }
 
 func (bloomFilter *BloomFilter) InsertString(data string) *BloomFilter {
-	bloomFilter.lock.Lock()
-	defer bloomFilter.lock.Unlock()
-
 	return bloomFilter.Insert([]byte(data))
 }
 
 func (bloomFilter *BloomFilter) LookupString(data string) bool {
-	bloomFilter.lock.Lock()
-	defer bloomFilter.lock.Unlock()
-
 	return bloomFilter.Lookup([]byte(data))
 }
 
