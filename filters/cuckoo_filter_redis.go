@@ -14,8 +14,9 @@ import (
 )
 
 type CuckooFilterRedis struct {
-	buckets map[string]*buckets.BucketRedis
-	key     string
+	buckets     map[string]*buckets.BucketRedis
+	key         string
+	metadataKey string
 	*AbstractCuckooFilter
 }
 
@@ -25,11 +26,16 @@ func NewCuckooFilterRedis(size, bucketSize, fingerPrintLength uint64) (*CuckooFi
 
 func NewCuckooFilterRedisWithRetries(size, bucketSize, fingerPrintLength, retries uint64) (*CuckooFilterRedis, error) {
 	filterKey := gostatix.GenerateRandomString(16)
-	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, 0, retries)
-	filter := &CuckooFilterRedis{make(map[string]*buckets.BucketRedis, size), filterKey, baseFilter}
-	err := filter.initBuckets()
+	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries)
+	metadataKey := gostatix.GenerateRandomString(16)
+	filter := &CuckooFilterRedis{make(map[string]*buckets.BucketRedis, size), filterKey, metadataKey, baseFilter}
+	err := filter.setMetadata(0)
 	if err != nil {
-		return nil, fmt.Errorf("gostatix: error while creating new cuckoo filter redis: %v", err)
+		return nil, fmt.Errorf("gostatix: error while creating cuckoo filter redis. error: %v", err)
+	}
+	err = filter.initBuckets()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error while creating cuckoo filter redis: %v", err)
 	}
 	return filter, nil
 }
@@ -40,8 +46,36 @@ func NewCuckooFilterRedisWithErrorRate(size, bucketSize, retries uint64, errorRa
 	return NewCuckooFilterRedisWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }
 
+func NewCuckooFilterRedisFromKey(metadataKey string) (*CuckooFilterRedis, error) {
+	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("gostatix: error while fetching hash from redis, error: %v", err)
+	}
+	size, _ := strconv.Atoi(values["size"])
+	bucketSize, _ := strconv.Atoi(values["bucketSize"])
+	fingerPrintLength, _ := strconv.Atoi(values["fingerPrintLength"])
+	retries, _ := strconv.Atoi(values["retries"])
+	cuckooFilter := &CuckooFilterRedis{}
+	baseFilter := MakeAbstractCuckooFilter(uint64(size), uint64(bucketSize), uint64(fingerPrintLength), uint64(retries))
+	cuckooFilter.AbstractCuckooFilter = baseFilter
+	cuckooFilter.metadataKey = metadataKey
+	cuckooFilter.key = values["key"]
+	cuckooFilter.buckets = make(map[string]*buckets.BucketRedis)
+	cuckooFilter.localInitBuckets()
+	return cuckooFilter, nil
+}
+
 func (cuckooFilter CuckooFilterRedis) Key() string {
 	return cuckooFilter.key
+}
+
+func (cuckooFilter CuckooFilterRedis) MetadataKey() string {
+	return cuckooFilter.metadataKey
+}
+
+func (cuckooFilter *CuckooFilterRedis) Length() uint64 {
+	value, _ := gostatix.GetRedisClient().HGet(context.Background(), cuckooFilter.metadataKey, "length").Int64()
+	return uint64(value)
 }
 
 func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) bool {
@@ -72,7 +106,7 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 			newIndexKey := "cuckoo_" + cuckooFilter.key + "_bucket_" + strconv.FormatUint(newIndex, 10)
 			if cuckooFilter.buckets[newIndexKey].IsFree() {
 				cuckooFilter.buckets[newIndexKey].Add(prevFingerPrint)
-				cuckooFilter.length++
+				cuckooFilter.incrLength()
 				return true
 			}
 		}
@@ -85,7 +119,7 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 		}
 		panic("cannot insert element, cuckoofilter is full")
 	}
-	cuckooFilter.length++
+	cuckooFilter.incrLength()
 	return true
 }
 
@@ -117,7 +151,7 @@ func (cuckooFilter *CuckooFilterRedis) Remove(data []byte) (bool, error) {
 	}
 	if isPresent {
 		cuckooFilter.buckets[fIndex].Remove(fingerPrint)
-		cuckooFilter.length--
+		cuckooFilter.decrLength()
 		return true, nil
 	}
 	isPresent, err = cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
@@ -126,10 +160,29 @@ func (cuckooFilter *CuckooFilterRedis) Remove(data []byte) (bool, error) {
 	}
 	if isPresent {
 		cuckooFilter.buckets[sIndex].Remove(fingerPrint)
-		cuckooFilter.length--
+		cuckooFilter.decrLength()
 		return true, nil
 	}
 	return false, nil
+}
+
+func (cuckooFilter *CuckooFilterRedis) incrLength() error {
+	return gostatix.GetRedisClient().HIncrBy(context.Background(), cuckooFilter.metadataKey, "length", 1).Err()
+}
+
+func (cuckooFilter *CuckooFilterRedis) decrLength() error {
+	return gostatix.GetRedisClient().HIncrBy(context.Background(), cuckooFilter.metadataKey, "length", -1).Err()
+}
+
+func (cuckooFilter *CuckooFilterRedis) setMetadata(length uint64) error {
+	metadata := make(map[string]interface{})
+	metadata["size"] = cuckooFilter.size
+	metadata["bucketSize"] = cuckooFilter.bucketSize
+	metadata["fingerPrintLength"] = cuckooFilter.fingerPrintLength
+	metadata["retries"] = cuckooFilter.retries
+	metadata["key"] = cuckooFilter.key
+	metadata["length"] = 0
+	return gostatix.GetRedisClient().HSet(context.Background(), cuckooFilter.metadataKey, metadata).Err()
 }
 
 type bucketRedisJSON struct {
@@ -147,9 +200,10 @@ type cuckooFilterRedisJSON struct {
 	Retries           uint64            `json:"r"`
 	Buckets           []bucketRedisJSON `json:"b"`
 	Key               string            `json:"k"`
+	MetadataKey       string            `json:"mk"`
 }
 
-func (filter CuckooFilterRedis) Export() ([]byte, error) {
+func (filter *CuckooFilterRedis) Export() ([]byte, error) {
 	bucketsJSON := make([]bucketRedisJSON, filter.size)
 	for i := uint64(0); i < filter.size; i++ {
 		bucketKey := filter.getIndexKey(i)
@@ -162,10 +216,11 @@ func (filter CuckooFilterRedis) Export() ([]byte, error) {
 		filter.size,
 		filter.bucketSize,
 		filter.fingerPrintLength,
-		filter.length,
+		filter.Length(),
 		filter.retries,
 		bucketsJSON,
 		filter.key,
+		filter.metadataKey,
 	})
 }
 
@@ -178,13 +233,15 @@ func (filter *CuckooFilterRedis) Import(data []byte, withNewRedisKey bool) error
 	filter.size = f.Size
 	filter.bucketSize = f.BucketSize
 	filter.fingerPrintLength = f.FingerPrintLength
-	filter.length = f.Length
 	filter.retries = f.Retries
 	if withNewRedisKey {
 		filter.key = gostatix.GenerateRandomString(16)
+		filter.metadataKey = gostatix.GenerateRandomString(16)
 	} else {
 		filter.key = f.Key
+		filter.metadataKey = f.MetadataKey
 	}
+	filter.setMetadata(f.Length)
 	filter.initBuckets()
 	filters := make(map[string]*buckets.BucketRedis, f.Size)
 	for i := range f.Buckets {
@@ -248,6 +305,18 @@ func (filter *CuckooFilterRedis) initBuckets() error {
 		filter.buckets[bucketKey] = buckets.NewBucketRedis(bucketKey, filter.bucketSize)
 	}
 	return nil
+}
+
+func (filter *CuckooFilterRedis) localInitBuckets() {
+	var bucketKeys []string
+	for i := uint64(0); i < filter.size; i++ {
+		bucketKey := "cuckoo_" + filter.key + "_bucket_" + strconv.FormatUint(i, 10)
+		bucketKeys = append(bucketKeys, bucketKey)
+	}
+	for i := range bucketKeys {
+		bucketKey := bucketKeys[i]
+		filter.buckets[bucketKey] = buckets.NewBucketRedis(bucketKey, filter.bucketSize)
+	}
 }
 
 func (cuckooFilter *CuckooFilterRedis) getIndexKey(index uint64) string {

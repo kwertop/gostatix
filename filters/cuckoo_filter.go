@@ -14,6 +14,7 @@ import (
 
 type CuckooFilter struct {
 	buckets []buckets.BucketMem
+	length  uint64
 	*AbstractCuckooFilter
 	lock sync.RWMutex
 }
@@ -27,7 +28,7 @@ func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uin
 	for i := range filter {
 		filter[i] = *buckets.NewBucketMem(bucketSize)
 	}
-	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, 0, retries)
+	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries)
 	return &CuckooFilter{buckets: filter, AbstractCuckooFilter: baseFilter}
 }
 
@@ -35,6 +36,10 @@ func NewCuckooFilterWithErrorRate(size, bucketSize, retries uint64, errorRate fl
 	fingerPrintLength := gostatix.CalculateFingerPrintLength(size, errorRate)
 	capacity := uint64(math.Ceil(float64(size) * 0.955 / float64(bucketSize)))
 	return NewCuckooFilterWithRetries(capacity, bucketSize, fingerPrintLength, retries)
+}
+
+func (cuckooFilter *CuckooFilter) Length() uint64 {
+	return cuckooFilter.length
 }
 
 func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
@@ -112,7 +117,7 @@ func (aFilter *CuckooFilter) Equals(bFilter *CuckooFilter) bool {
 	result := true
 	for result && count < len(aFilter.buckets) {
 		bucket := aFilter.buckets[count]
-		if !bFilter.buckets[count].Equals(bucket) {
+		if !bFilter.buckets[count].Equals(&bucket) {
 			return false
 		}
 		count++

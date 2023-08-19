@@ -92,6 +92,7 @@ func NewRedisBloomFilterFromKey(metadataKey string) (*BloomFilter, error) {
 	numHashes, _ := strconv.Atoi(values["numHashes"])
 	bloomFilter.size = uint(size)
 	bloomFilter.numHashes = uint(numHashes)
+	bloomFilter.metadataKey = metadataKey
 	bitsetKey := values["bitsetKey"]
 	filter, _ := bitset.FromRedisKey(bitsetKey)
 	bloomFilter.filter = filter

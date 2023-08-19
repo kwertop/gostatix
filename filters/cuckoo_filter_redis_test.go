@@ -17,8 +17,9 @@ func TestCuckooRedisBasic(t *testing.T) {
 	filter, _ := NewCuckooFilterRedisWithErrorRate(20, 4, 500, 0.01)
 	filter.Insert([]byte("john"), false)
 	filter.Insert([]byte("jane"), false)
-	if filter.length != 2 {
-		t.Errorf("filter length should be 2, instead found %v", filter.length)
+	filterLength := filter.Length()
+	if filterLength != 2 {
+		t.Errorf("filter length should be 2, instead found %v", filterLength)
 	}
 	bucketsLength := 0
 	for b := range filter.buckets {
@@ -43,8 +44,9 @@ func TestCuckooRedisAddDifferentBuckets(t *testing.T) {
 	if filter.buckets[firstIndex].IsFree() || filter.buckets[secondIndex].IsFree() {
 		t.Error("both buckets should be full")
 	}
-	if filter.length != 4 {
-		t.Errorf("filter length should be 4, instead found %v", filter.length)
+	filterLength := filter.Length()
+	if filterLength != 4 {
+		t.Errorf("filter length should be 4, instead found %v", filterLength)
 	}
 	bucketsLength := 0
 	for b := range filter.buckets {
@@ -64,7 +66,8 @@ func TestCuckooRedisRetries(t *testing.T) {
 	secondIndex := filter.getIndexKey(sIndex)
 	filter.buckets[firstIndex].Add("bar")
 	filter.buckets[secondIndex].Add("baz")
-	filter.length += 2
+	filter.incrLength()
+	filter.incrLength()
 	ok := filter.Insert(e, false)
 	if !ok {
 		t.Errorf("%v should get added in the filter", string(e))
@@ -80,8 +83,9 @@ func TestCuckooRedisRetries(t *testing.T) {
 		}
 		bucketsLength += int(bucket.Length())
 	}
-	if filter.length != 3 {
-		t.Errorf("filter length should be 3, instead found %v", filter.length)
+	filterLength := filter.Length()
+	if filterLength != 3 {
+		t.Errorf("filter length should be 3, instead found %v", filterLength)
 	}
 	if bucketsLength != 3 {
 		t.Errorf("total elements insisde buckets should be 3, instead found %v", bucketsLength)
@@ -281,6 +285,30 @@ func TestCuckooMarshalUnmarshalCuckooRedis(t *testing.T) {
 	snapshot, _ := filter1.Export()
 	filter2, _ := NewCuckooFilterRedis(0, 0, 0)
 	filter2.Import(snapshot, true)
+	ok, _ := filter2.Lookup([]byte("one"))
+	if !ok {
+		t.Error("\"one\" should be in filter3")
+	}
+	ok, _ = filter2.Lookup([]byte("five"))
+	if ok {
+		t.Error("\"five\" should not be in filter3")
+	}
+	ok, _ = filter1.Equals(*filter2)
+	if !ok {
+		t.Errorf("filter1 and filter2 should be same")
+	}
+}
+
+func TestCuckooRedisImportFromRedisKey(t *testing.T) {
+	initMockRedis()
+	filter1, _ := NewCuckooFilterRedis(5, 1, 3)
+	filter1.Insert([]byte("one"), false)
+	filter1.Insert([]byte("two"), false)
+	filter1.Insert([]byte("three"), false)
+	filter1.Insert([]byte("four"), false)
+
+	metadataKey := filter1.MetadataKey()
+	filter2, _ := NewCuckooFilterRedisFromKey(metadataKey)
 	ok, _ := filter2.Lookup([]byte("one"))
 	if !ok {
 		t.Error("\"one\" should be in filter3")

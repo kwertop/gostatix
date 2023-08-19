@@ -324,7 +324,7 @@ func TestBitSetMemBinaryReadWrite(t *testing.T) {
 	}
 }
 
-func TestImportFromRedisKey(t *testing.T) {
+func TestBloomRedisImportFromRedisKey(t *testing.T) {
 	initMockRedis()
 	aFilter, _ := NewRedisBloomFilterWithParameters(1000, 0.001)
 	e1 := "This"
