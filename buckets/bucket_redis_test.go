@@ -60,8 +60,8 @@ func TestBucketRedisFull(t *testing.T) {
 
 func TestBucketRedisLength(t *testing.T) {
 	initMockRedis()
-	bucket := NewBucketRedis("key", 10)
-	initBucket("key", 10)
+	bucket := NewBucketRedis("bkey", 10)
+	initBucket("bkey", 10)
 	bucket.Add("foo")
 	bucket.Add("bar")
 	bucket.Add("baz")

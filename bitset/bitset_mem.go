@@ -14,8 +14,8 @@ import (
 )
 
 // BitSetMem is an implementation of IBitSet.
-// size is the number of bits in the bitset
-// set is the bitset implementation adopted from https://github.com/bits-and-blooms/bitset
+// _size_ is the number of bits in the bitset
+// _set_ is the bitset implementation adopted from https://github.com/bits-and-blooms/bitset
 type BitSetMem struct {
 	set  *bitset.BitSet
 	size uint

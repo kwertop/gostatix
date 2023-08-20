@@ -1,3 +1,7 @@
+/*
+Package buckets implements buckets - a container of fixed number of entries
+used in cuckoo filters.
+*/
 package buckets
 
 type BaseBucket interface {
@@ -9,6 +13,7 @@ type AbstractBucket struct {
 	size uint64
 }
 
+// Size returns the number of entries in the bucket
 func (bucket *AbstractBucket) Size() uint64 {
 	return bucket.size
 }
