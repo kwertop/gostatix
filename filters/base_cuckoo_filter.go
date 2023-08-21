@@ -8,12 +8,6 @@ import (
 	"github.com/kwertop/gostatix/hash"
 )
 
-type Entry struct {
-	fingerPrint string
-	firstIndex  uint64
-	secondIndex uint64
-}
-
 type BaseCuckooFilter interface {
 	Size() uint64
 	Length() uint64
@@ -31,6 +25,12 @@ type AbstractCuckooFilter struct {
 	retries           uint64
 }
 
+type Entry struct {
+	fingerPrint string
+	firstIndex  uint64
+	secondIndex uint64
+}
+
 func MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries uint64) *AbstractCuckooFilter {
 	baseFilter := &AbstractCuckooFilter{}
 	baseFilter.size = size
@@ -40,24 +40,36 @@ func MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries uint6
 	return baseFilter
 }
 
+// Size returns the size of the buckets slice of the Cuckoo Filter
 func (cuckooFilter *AbstractCuckooFilter) Size() uint64 {
 	return cuckooFilter.size
 }
 
+// BucketSize returns the size of the individual buckets of the Cuckoo Filter
 func (cuckooFilter *AbstractCuckooFilter) BucketSize() uint64 {
 	return cuckooFilter.bucketSize
 }
 
+// FingerPrintLength returns the length of the fingerprint of the Cuckoo Filter
 func (cuckooFilter *AbstractCuckooFilter) FingerPrintLength() uint64 {
 	return cuckooFilter.fingerPrintLength
 }
 
+// CellSize returns the overall size of the Cuckoo Filter - _size_ * _bucketSize_
 func (cuckooFilter *AbstractCuckooFilter) CellSize() uint64 {
 	return cuckooFilter.size * cuckooFilter.bucketSize
 }
 
+// Retries returns the number of retries that the Cuckoo Filter makes if the
+// first and second indices returned after hashing the input is already occupied
+// in the filter
 func (cuckooFilter *AbstractCuckooFilter) Retries() uint64 {
 	return cuckooFilter.retries
+}
+
+// CuckooPositiveRate returns the false positive error rate of the filter
+func (cuckooFilter *AbstractCuckooFilter) CuckooPositiveRate() float64 {
+	return math.Pow(2, math.Log2(float64(2*cuckooFilter.bucketSize))-float64(cuckooFilter.fingerPrintLength))
 }
 
 func (cuckooFilter *AbstractCuckooFilter) getPositions(data []byte) (string, uint64, uint64, error) {
@@ -77,8 +89,4 @@ func getHash(data []byte) uint64 {
 	hash1, _ := hash.Sum128(data)
 	// hash := metro.Hash64(data, 1373)
 	return hash1
-}
-
-func (cuckooFilter *AbstractCuckooFilter) CuckooPositiveRate() float64 {
-	return math.Pow(2, math.Log2(float64(2*cuckooFilter.bucketSize))-float64(cuckooFilter.fingerPrintLength))
 }

@@ -12,6 +12,10 @@ import (
 	"github.com/kwertop/gostatix/buckets"
 )
 
+// CuckooFilter is the in-memory implementation of BaseCuckooFilter
+// _buckets_ is a slice of BucketMem
+// _length_ represents the number of entries present in the Cuckoo Filter
+// _lock_ is used to synchronize concurrent read/writes
 type CuckooFilter struct {
 	buckets []buckets.BucketMem
 	length  uint64
@@ -19,10 +23,20 @@ type CuckooFilter struct {
 	lock sync.RWMutex
 }
 
+// NewCuckooFilter creates a new in-memory CuckooFilter
+// _size_ is the size of the BucketMem slice
+// _bucketSize_ is the size of the individual buckets inside the bucket slice
+// _fingerPrintLength_ is fingerprint hash of the input to be inserted/removed/lookup
 func NewCuckooFilter(size, bucketSize, fingerPrintLength uint64) *CuckooFilter {
 	return NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, 500)
 }
 
+// NewCuckooFilterWithRetries creates new in-memory CuckooFilter with specified _retries_
+// _size_ is the size of the BucketMem slice
+// _bucketSize_ is the size of the individual buckets inside the bucket slice
+// _fingerPrintLength_ is fingerprint hash of the input to be inserted/removed/lookup
+// _retries_ is the number of retries that the Cuckoo filter makes if the first two indices obtained
+// after hashing the input is already occupied in the filter
 func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uint64) *CuckooFilter {
 	filter := make([]buckets.BucketMem, size)
 	for i := range filter {
@@ -32,16 +46,28 @@ func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uin
 	return &CuckooFilter{buckets: filter, AbstractCuckooFilter: baseFilter}
 }
 
+// NewCuckooFilterWithErrorRate creates an in-memory CuckooFilter with a specified false positive
+// rate : _errorRate_
+// _size_ is the size of the BucketMem slice
+// _bucketSize_ is the size of the individual buckets inside the bucket slice
+// _retries_ is the number of retries that the Cuckoo filter makes if the first two indices obtained
+// _errorRate_ is the desired false positive rate of the filter. fingerPrintLength is calculated
+// according to this error rate.
 func NewCuckooFilterWithErrorRate(size, bucketSize, retries uint64, errorRate float64) *CuckooFilter {
 	fingerPrintLength := gostatix.CalculateFingerPrintLength(size, errorRate)
 	capacity := uint64(math.Ceil(float64(size) * 0.955 / float64(bucketSize)))
 	return NewCuckooFilterWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }
 
+// Length returns the current length of the Cuckoo Filter or the current number of entries
+// present in the Cuckoo Filter
 func (cuckooFilter *CuckooFilter) Length() uint64 {
 	return cuckooFilter.length
 }
 
+// Insert writes the _data_ in the Cuckoo Filter for future lookup
+// _destructive_ parameter is used to specify if the previous ordering of the
+// present entries is to be preserved after the retries (if that case arises)
 func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 	cuckooFilter.lock.Lock()
 	defer cuckooFilter.lock.Unlock()
@@ -85,6 +111,7 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 	return true
 }
 
+// Lookup returns true if the _data_ is present in the Cuckoo Filter, else false
 func (cuckooFilter *CuckooFilter) Lookup(data []byte) bool {
 	cuckooFilter.lock.Lock()
 	defer cuckooFilter.lock.Unlock()
@@ -94,6 +121,7 @@ func (cuckooFilter *CuckooFilter) Lookup(data []byte) bool {
 		cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
 }
 
+// Remove deletes the _data_ from the Cuckoo Filter
 func (cuckooFilter *CuckooFilter) Remove(data []byte) bool {
 	cuckooFilter.lock.Lock()
 	defer cuckooFilter.lock.Unlock()
@@ -112,6 +140,7 @@ func (cuckooFilter *CuckooFilter) Remove(data []byte) bool {
 	}
 }
 
+// Equals checks if two CuckooFilter are same or not
 func (aFilter *CuckooFilter) Equals(bFilter *CuckooFilter) bool {
 	count := 0
 	result := true
@@ -125,12 +154,14 @@ func (aFilter *CuckooFilter) Equals(bFilter *CuckooFilter) bool {
 	return true
 }
 
+// bucketMemJSON is internal struct used to json marshal/unmarshal buckets
 type bucketMemJSON struct {
 	Size     uint64   `json:"s"`
 	Length   uint64   `json:"l"`
 	Elements []string `json:"e"`
 }
 
+// cuckooFilterMemJSON is internal struct used to json marshal/unmarshal cuckoo filter
 type cuckooFilterMemJSON struct {
 	Size              uint64          `json:"s"`
 	BucketSize        uint64          `json:"bs"`
@@ -140,6 +171,7 @@ type cuckooFilterMemJSON struct {
 	Buckets           []bucketMemJSON `json:"b"`
 }
 
+// Export JSON marshals the CuckooFilter and returns a byte slice containing the data
 func (cuckooFilter *CuckooFilter) Export() ([]byte, error) {
 	bucketsJSON := make([]bucketMemJSON, cuckooFilter.size)
 	for i := range cuckooFilter.buckets {
@@ -157,6 +189,7 @@ func (cuckooFilter *CuckooFilter) Export() ([]byte, error) {
 	})
 }
 
+// Import JSON unmarshals the _data_ into the CuckooFilter
 func (cuckooFilter *CuckooFilter) Import(data []byte) error {
 	var f cuckooFilterMemJSON
 	err := json.Unmarshal(data, &f)
@@ -181,6 +214,9 @@ func (cuckooFilter *CuckooFilter) Import(data []byte) error {
 	return nil
 }
 
+// WriteTo writes the BloomFilter onto the specified _stream_ and returns the
+// number of bytes written.
+// It can be used to write to disk (using a file stream) or to network.
 func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
 	err := binary.Write(stream, binary.BigEndian, cuckooFilter.size)
 	if err != nil {
@@ -213,6 +249,9 @@ func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
 	return numBytes + int64(5*binary.Size(uint64(0))), nil
 }
 
+// ReadFrom reads the BucketMem from the specified _stream_ and returns the
+// number of bytes read.
+// It can be used to read from disk (using a file stream) or from network.
 func (cuckooFilter *CuckooFilter) ReadFrom(stream io.Reader) (int64, error) {
 	var size, bucketSize, fingerPrintLength, length, retries uint64
 	err := binary.Read(stream, binary.BigEndian, &size)
