@@ -219,7 +219,7 @@ func (cuckooFilter *CuckooFilter) Import(data []byte) error {
 	return nil
 }
 
-// WriteTo writes the BloomFilter onto the specified _stream_ and returns the
+// WriteTo writes the CuckooFilter onto the specified _stream_ and returns the
 // number of bytes written.
 // It can be used to write to disk (using a file stream) or to network.
 func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
@@ -254,7 +254,7 @@ func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
 	return numBytes + int64(5*binary.Size(uint64(0))), nil
 }
 
-// ReadFrom reads the BucketMem from the specified _stream_ and returns the
+// ReadFrom reads the CuckooFilter from the specified _stream_ and returns the
 // number of bytes read.
 // It can be used to read from disk (using a file stream) or from network.
 func (cuckooFilter *CuckooFilter) ReadFrom(stream io.Reader) (int64, error) {
