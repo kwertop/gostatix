@@ -1,3 +1,8 @@
+/*
+Package filters provides data structures and methods for creating probabilistic filters.
+This package provides implementations of two of the most widely used filters,
+Bloom Filter and Cuckoo Filter.
+*/
 package filters
 
 import (
@@ -15,6 +20,15 @@ import (
 	"github.com/kwertop/gostatix/bitset"
 )
 
+// The BloomFilter data structure. It mainly has two fields: _size_ and _numHashes_
+// _size_ denotes the maximum size of the bloom filter
+// _numHashes_ denotes the number of hashing functions applied on the entrant element
+// during insertion or lookup.
+// _filter_ is the bitset backing internally the bloom filter. It can either be a type of
+// BitSetMem (in-memory) or BitSetRedis (redis-backed).
+// _metadataKey_ saves the information about a Bloom Filter saved on Redis
+// _lock_ is used to synchronize read/write on an in-memory BitSetMem. It's not used for
+// BitSetRedis as Redis is event-driven single threaded
 type BloomFilter struct {
 	size        uint
 	numHashes   uint
@@ -23,7 +37,15 @@ type BloomFilter struct {
 	lock        sync.RWMutex
 }
 
+// NewBloomFilterWithBitSet creates and returns a new BloomFilter
+// _size_ is the maximum size of the bloom filter
+// _numHashes_ is the number of hashing functions to be applied on the entrant
+// _filter_ is either BitSetMem or BitSetRedis
+// _metadataKey_ is needed if the filter is of type BitSetRedis otherwise it's overlooked
 func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet, metadataKey string) (*BloomFilter, error) {
+	if !bitset.IsBitSetMem(filter) && metadataKey == "" {
+		return nil, fmt.Errorf("gostatix: error initializing filter as metadataKey is blank for BitSetRedis")
+	}
 	if filter.Size() != size {
 		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
 	}
@@ -35,6 +57,12 @@ func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet, metad
 	}, nil
 }
 
+// NewRedisBloomFilterWithParameters creates and returns a new Redis backed BloomFilter
+// _numItems_ is the number of items for which the bloom filter has to be checked for validation
+// _errorRate_ is the acceptable false positive error rate
+// Based upon the above two parameters passed, the size of the bloom filter is calculated
+// metadataKey is created using a random alpha-numeric generator which can be retrieved using
+// MetadataKey() method
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
@@ -51,6 +79,10 @@ func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*Bloom
 	return NewBloomFilterWithBitSet(size, numHashes, filter, metadataKey)
 }
 
+// NewRedisBloomFilterWithParameters creates and returns a new in-memory BloomFilter
+// _numItems_ is the number of items for which the bloom filter has to be checked for validation
+// _errorRate_ is the acceptable false positive error rate
+// Based upon the above two parameters passed, the size of the bloom filter is calculated
 func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := gostatix.CalculateFilterSize(numItems, errorRate)
 	numHashes := gostatix.CalculateNumHashes(size, numItems)
@@ -58,6 +90,9 @@ func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFi
 	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter, "")
 }
 
+// NewRedisBloomFilterFromBitSet creates and returns a new Redis backed BloomFilter from the
+// bitset passed in the parameter _data_
+// _numHashes_ parameter is needed for the number of hashing functions
 func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter, error) {
 	size := gostatix.Max(uint(len(data)*64), 1)
 	numHashes = gostatix.Max(numHashes, 1)
@@ -77,11 +112,17 @@ func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter,
 	}, nil
 }
 
+// NewRedisBloomFilterFromBitSet creates and returns a new in-memory BloomFilter from the
+// bitset passed in the parameter _data_
+// _numHashes_ parameter is needed for the number of hashing functions
 func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 	size := uint(len(data) * 64)
 	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: bitset.FromDataMem(data)}
 }
 
+// NewRedisBloomFilterFromKey is used to create a new Redis backed BloomFilter from the
+// _metadataKey_ (the Redis key used to store the metadata about the bloom filter) passed
+// For this to work, value should be present in Redis at _key_
 func NewRedisBloomFilterFromKey(metadataKey string) (*BloomFilter, error) {
 	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
 	if err != nil {
@@ -99,6 +140,7 @@ func NewRedisBloomFilterFromKey(metadataKey string) (*BloomFilter, error) {
 	return bloomFilter, nil
 }
 
+// Insert writes new _data_ in the bloom filter
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
 	bloomFilter.lock.Lock()
 	defer bloomFilter.lock.Unlock()
@@ -118,32 +160,31 @@ func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
 	return bloomFilter
 }
 
-func getHashes(data []byte) [2]uint64 {
-	hash1, hash2 := metro.Hash128(data, 1373)
-	return [2]uint64{hash1, hash2}
-}
-
-func (bloomFilter *BloomFilter) getIndex(hashes [2]uint64, i uint) uint {
-	j := uint64(i)
-	return uint(math.Abs(float64((hashes[0] + j*hashes[1] + uint64(math.Floor(float64(math.Pow(float64(j), 3)-float64(j))/6))) % uint64(bloomFilter.size))))
-}
-
+// GetCap returns the size of the bloom filter
 func (bloomFilter *BloomFilter) GetCap() uint {
 	return bloomFilter.size
 }
 
+// GetNumHashes returns the number of hash functions used in the bloom filter
 func (bloomFilter *BloomFilter) GetNumHashes() uint {
 	return bloomFilter.numHashes
 }
 
+// GetBitSet returns the internal bitset. It would be a BitSetMem in case of an
+// in-memory Bloom filter while it would be a BitSetRedis for a Redis backed
+// Bloom filter.
 func (bloomFilter *BloomFilter) GetBitSet() *bitset.IBitSet {
 	return &bloomFilter.filter
 }
 
+// GetMetadataKey returns the Redis key used to store the metadata about the Redis
+// backed Bloom filter
 func (bloomFilter *BloomFilter) GetMetadataKey() string {
 	return bloomFilter.metadataKey
 }
 
+// Lookup returns true if the corresponding bits in the bitset for _data_ is set,
+// otherwise false
 func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
 	bloomFilter.lock.Lock()
 	defer bloomFilter.lock.Unlock()
@@ -171,19 +212,23 @@ func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
 	// }
 }
 
+// InsertString accepts string value as _data_ for inserting into the Bloom filter
 func (bloomFilter *BloomFilter) InsertString(data string) *BloomFilter {
 	return bloomFilter.Insert([]byte(data))
 }
 
+// LookupString accepts string value as _data_ to lookup the Bloom filter
 func (bloomFilter *BloomFilter) LookupString(data string) bool {
 	return bloomFilter.Lookup([]byte(data))
 }
 
+// BloomPositiveRate returns the false positive error rate of the filter
 func (bloomFilter *BloomFilter) BloomPositiveRate() float64 {
 	length, _ := bloomFilter.filter.BitCount()
 	return math.Pow(1-math.Exp(-float64(length)/float64(bloomFilter.size)), float64(bloomFilter.numHashes))
 }
 
+// Equals checks if two BloomFilter's are equal
 func (aFilter *BloomFilter) Equals(bFilter *BloomFilter) (bool, error) {
 	if aFilter.size != bFilter.size || aFilter.numHashes != bFilter.numHashes {
 		return false, nil
@@ -195,12 +240,14 @@ func (aFilter *BloomFilter) Equals(bFilter *BloomFilter) (bool, error) {
 	return ok, nil
 }
 
+// internal type used to marshal/unmarshal BloomFilter
 type bloomFilterType struct {
 	M uint   `json:"m"`
 	K uint   `json:"k"`
 	B []byte `json:"b"`
 }
 
+// Export JSON marshals the BloomFilter and returns a byte slice containing the data
 func (bloomFilter *BloomFilter) Export() ([]byte, error) {
 	_, bitset, err := bloomFilter.filter.Export()
 	if err != nil {
@@ -209,6 +256,7 @@ func (bloomFilter *BloomFilter) Export() ([]byte, error) {
 	return json.Marshal(bloomFilterType{bloomFilter.size, bloomFilter.numHashes, bitset})
 }
 
+// Import JSON unmarshals the _data_ into the BloomFilter
 func (bloomFilter *BloomFilter) Import(data []byte) error {
 	var f bloomFilterType
 	err := json.Unmarshal(data, &f)
@@ -221,6 +269,11 @@ func (bloomFilter *BloomFilter) Import(data []byte) error {
 	return err
 }
 
+// WriteTo writes the BloomFilter onto the specified _stream_ and returns the
+// number of bytes written.
+// It can be used to write to disk (using a file stream) or to network.
+// It's not implemented for Redis backed Bloom filter (BitSetRedis) as data for
+// a Redis backed Bloom Filter is already there in Redis.
 func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
 	if !bitset.IsBitSetMem(bloomFilter.filter) {
 		return 0, fmt.Errorf("stream write doesn't support bitset redis")
@@ -237,6 +290,12 @@ func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
 	return numBytes + int64(2*binary.Size(uint64(0))), err
 }
 
+// ReadFrom reads the BucketMem from the specified _stream_ and returns the
+// number of bytes read.
+// It can be used to read from disk (using a file stream) or from network.
+// It's not implemented for Redis backed Bloom filter (BitSetRedis) as data for
+// a Redis backed Bloom Filter is already there in Redis. NewRedisBloomFilterFromKey
+// method can be used to import or create a BloomFilter instead
 func (bloomFilter *BloomFilter) ReadFrom(stream io.Reader) (int64, error) {
 	var size, numHashes uint64
 	err := binary.Read(stream, binary.BigEndian, &size)
@@ -256,4 +315,14 @@ func (bloomFilter *BloomFilter) ReadFrom(stream io.Reader) (int64, error) {
 	bloomFilter.numHashes = uint(numHashes)
 	bloomFilter.filter = bitSet
 	return numBytes + int64(2*binary.Size(uint64(0))), nil
+}
+
+func getHashes(data []byte) [2]uint64 {
+	hash1, hash2 := metro.Hash128(data, 1373)
+	return [2]uint64{hash1, hash2}
+}
+
+func (bloomFilter *BloomFilter) getIndex(hashes [2]uint64, i uint) uint {
+	j := uint64(i)
+	return uint(math.Abs(float64((hashes[0] + j*hashes[1] + uint64(math.Floor(float64(math.Pow(float64(j), 3)-float64(j))/6))) % uint64(bloomFilter.size))))
 }
