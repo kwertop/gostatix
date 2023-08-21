@@ -1,3 +1,17 @@
+/*
+Package count implements various probabilistic data structures used in counting.
+
+ 1. Count-Min Sketch: A probabilistic data structure used to estimate the frequency
+    of items in a data stream. Refer: http://dimacs.rutgers.edu/~graham/pubs/papers/cm-full.pdf
+ 2. Hyperloglog: A probabilistic data structure used for estimating the cardinality
+    (number of unique elements) of in a very large dataset.
+    Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+ 3. Top-K: A data structure is designed to efficiently retrieve the "top-K" or "largest-K"
+    elements from a dataset based on a certain criterion, such as frequency, value, or score
+
+The package implements both in-mem and Redis backed solutions for the data structures. The
+in-memory data structures are thread-safe.
+*/
 package count
 
 import (
@@ -10,12 +24,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// HyperLogLogRedis is the Redis backed implementation of BaseHyperLogLog
+// _key_ holds the Redis key to the list which has the registers
+// _metadataKey_ is used to store the additional information about HyperLogLogRedis
+// for retrieving the sketch by the Redis key
 type HyperLogLogRedis struct {
 	AbstractHyperLogLog
 	key         string
 	metadataKey string
 }
 
+// NewHyperLogLogRedis creates new HyperLogLogRedis with the specified _numRegisters_
 func NewHyperLogLogRedis(numRegisters uint64) (*HyperLogLogRedis, error) {
 	abstractLog, err := MakeAbstractHyperLogLog(numRegisters)
 	if err != nil {
@@ -38,6 +57,9 @@ func NewHyperLogLogRedis(numRegisters uint64) (*HyperLogLogRedis, error) {
 	return h, nil
 }
 
+// NewHyperLogLogRedisFromKey is used to create a new Redis backed HyperLogLogRedis from the
+// _metadataKey_ (the Redis key used to store the metadata about the hyperloglog) passed.
+// For this to work, value should be present in Redis at _key_
 func NewHyperLogLogRedisFromKey(metadataKey string) (*HyperLogLogRedis, error) {
 	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
 	if err != nil {
@@ -52,15 +74,21 @@ func NewHyperLogLogRedisFromKey(metadataKey string) (*HyperLogLogRedis, error) {
 	return h, nil
 }
 
+// MetadataKey returns the metadataKey
 func (h *HyperLogLogRedis) MetadataKey() string {
 	return h.metadataKey
 }
 
+// Update sets the count of the passed _data_ (byte slice) to the hashed location
+// in the Redis list at _key_
 func (h *HyperLogLogRedis) Update(data []byte) error {
 	registerIndex, count := h.getRegisterIndexAndCount(data)
 	return h.updateRegisters(uint8(registerIndex), uint8(count))
 }
 
+// Count returns the number of distinct elements so far
+// _withCorrection_ is used to specify if correction is to be done for large registers
+// _withRoundingOff_ is used to specify if rounding off is required for estimation
 func (h *HyperLogLogRedis) Count(withCorrection bool, withRoundingOff bool) (uint64, error) {
 	harmonicMean, err := h.computeHarmonicMean()
 	if err != nil {
@@ -69,13 +97,7 @@ func (h *HyperLogLogRedis) Count(withCorrection bool, withRoundingOff bool) (uin
 	return h.getEstimation(harmonicMean, withCorrection, withRoundingOff), nil
 }
 
-func (h *HyperLogLogRedis) Equals(g *HyperLogLogRedis) (bool, error) {
-	if h.numRegisters != g.numRegisters {
-		return false, nil
-	}
-	return h.compareRegisters(g.key)
-}
-
+// Merge merges two HyperLogLogRedis data structures
 func (h *HyperLogLogRedis) Merge(g *HyperLogLogRedis) error {
 	if h.numRegisters != g.numRegisters {
 		return fmt.Errorf("gostatix: number of registers %d, %d don't match", h.numRegisters, g.numRegisters)
@@ -83,6 +105,15 @@ func (h *HyperLogLogRedis) Merge(g *HyperLogLogRedis) error {
 	return h.mergeRegisters(g.key)
 }
 
+// Equals checks if two HyperLogLogRedis data structures are equal
+func (h *HyperLogLogRedis) Equals(g *HyperLogLogRedis) (bool, error) {
+	if h.numRegisters != g.numRegisters {
+		return false, nil
+	}
+	return h.compareRegisters(g.key)
+}
+
+// Export JSON marshals the HyperLogLogRedis and returns a byte slice containing the data
 func (h *HyperLogLogRedis) Export() ([]byte, error) {
 	result, err := gostatix.GetRedisClient().LRange(
 		context.Background(),
@@ -101,6 +132,7 @@ func (h *HyperLogLogRedis) Export() ([]byte, error) {
 	return json.Marshal(hyperLogLogJSON{h.numRegisters, h.numBytesPerHash, h.correctionBias, registers, h.key})
 }
 
+// Import JSON unmarshals the _data_ into the HyperLogLogRedis
 func (h *HyperLogLogRedis) Import(data []byte, withNewKey bool) error {
 	var g hyperLogLogJSON
 	err := json.Unmarshal(data, &g)
