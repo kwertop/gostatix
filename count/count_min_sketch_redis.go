@@ -36,7 +36,7 @@ type CountMinSketchRedis struct {
 	metadataKey string
 }
 
-// // NewCountMinSketchRedis creates CountMinSketchRedis with _rows_ and _columns_
+// NewCountMinSketchRedis creates CountMinSketchRedis with _rows_ and _columns_
 func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 	if rows <= 0 || columns <= 0 {
 		return nil, errors.New("gostatix: rows and columns size should be greater than 0")
