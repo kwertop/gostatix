@@ -13,6 +13,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// CuckooFilterRedis is the Redis backed implementation of BaseCuckooFilter
+// _buckets_ is a slice of BucketRedis
+// _key_ holds the Redis key to the list which has the Redis keys of all buckets
+// _metadataKey_ is used to store the additional information about CuckooFilterRedis
+// for retrieving the filter by the Redis key
 type CuckooFilterRedis struct {
 	buckets     map[string]*buckets.BucketRedis
 	key         string
@@ -20,10 +25,20 @@ type CuckooFilterRedis struct {
 	*AbstractCuckooFilter
 }
 
+// NewCuckooFilter creates a new CuckooFilterRedis
+// _size_ is the size of the BucketRedis slice
+// _bucketSize_ is the size of the individual buckets inside the bucket slice
+// _fingerPrintLength_ is fingerprint hash of the input to be inserted/removed/lookup
 func NewCuckooFilterRedis(size, bucketSize, fingerPrintLength uint64) (*CuckooFilterRedis, error) {
 	return NewCuckooFilterRedisWithRetries(size, bucketSize, fingerPrintLength, 500)
 }
 
+// NewCuckooFilterWithRetries creates new CuckooFilterRedis with specified _retries_
+// _size_ is the size of the BucketRedis slice
+// _bucketSize_ is the size of the individual buckets inside the bucket slice
+// _fingerPrintLength_ is fingerprint hash of the input to be inserted/removed/lookup
+// _retries_ is the number of retries that the Cuckoo filter makes if the first two indices obtained
+// after hashing the input is already occupied in the filter
 func NewCuckooFilterRedisWithRetries(size, bucketSize, fingerPrintLength, retries uint64) (*CuckooFilterRedis, error) {
 	filterKey := gostatix.GenerateRandomString(16)
 	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries)
@@ -40,12 +55,22 @@ func NewCuckooFilterRedisWithRetries(size, bucketSize, fingerPrintLength, retrie
 	return filter, nil
 }
 
+// NewCuckooFilterWithErrorRate creates an CuckooFilterRedis with a specified false positive
+// rate : _errorRate_
+// _size_ is the size of the BucketRedis slice
+// _bucketSize_ is the size of the individual buckets inside the bucket slice
+// _retries_ is the number of retries that the Cuckoo filter makes if the first two indices obtained
+// _errorRate_ is the desired false positive rate of the filter. fingerPrintLength is calculated
+// according to this error rate.
 func NewCuckooFilterRedisWithErrorRate(size, bucketSize, retries uint64, errorRate float64) (*CuckooFilterRedis, error) {
 	fingerPrintLength := gostatix.CalculateFingerPrintLength(size, errorRate)
 	capacity := uint64(math.Ceil(float64(size) * 0.955 / float64(bucketSize)))
 	return NewCuckooFilterRedisWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }
 
+// NewCuckooFilterRedisFromKey is used to create a new Redis backed Cuckoo Filter from the
+// _metadataKey_ (the Redis key used to store the metadata about the cuckoo filter) passed
+// For this to work, value should be present in Redis at _key_
 func NewCuckooFilterRedisFromKey(metadataKey string) (*CuckooFilterRedis, error) {
 	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
 	if err != nil {
@@ -65,19 +90,27 @@ func NewCuckooFilterRedisFromKey(metadataKey string) (*CuckooFilterRedis, error)
 	return cuckooFilter, nil
 }
 
+// Key returns the value of the _key_ to the Redis list where all bucket keys are stored
 func (cuckooFilter CuckooFilterRedis) Key() string {
 	return cuckooFilter.key
 }
 
+// MetadataKey return _metadataKey_
 func (cuckooFilter CuckooFilterRedis) MetadataKey() string {
 	return cuckooFilter.metadataKey
 }
 
+// Length returns the current length of the Cuckoo Filter or the current number of entries
+// present in the Cuckoo Filter. In CuckooFilterRedis, length is tracked using a key-value pair
+// in Redis and modified using INCRBY Redis command
 func (cuckooFilter *CuckooFilterRedis) Length() uint64 {
 	value, _ := gostatix.GetRedisClient().HGet(context.Background(), cuckooFilter.metadataKey, "length").Int64()
 	return uint64(value)
 }
 
+// Insert writes the _data_ in the Cuckoo Filter for future lookup
+// _destructive_ parameter is used to specify if the previous ordering of the
+// present entries is to be preserved after the retries (if that case arises)
 func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) bool {
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
@@ -123,6 +156,7 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 	return true
 }
 
+// Lookup returns true if the _data_ is present in the Cuckoo Filter, else false
 func (cuckooFilter *CuckooFilterRedis) Lookup(data []byte) (bool, error) {
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
@@ -141,6 +175,7 @@ func (cuckooFilter *CuckooFilterRedis) Lookup(data []byte) (bool, error) {
 	return isAtFirstIndex || isAtSecondIndex, nil
 }
 
+// Remove deletes the _data_ from the Cuckoo Filter
 func (cuckooFilter *CuckooFilterRedis) Remove(data []byte) (bool, error) {
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
@@ -166,25 +201,7 @@ func (cuckooFilter *CuckooFilterRedis) Remove(data []byte) (bool, error) {
 	return false, nil
 }
 
-func (cuckooFilter *CuckooFilterRedis) incrLength() error {
-	return gostatix.GetRedisClient().HIncrBy(context.Background(), cuckooFilter.metadataKey, "length", 1).Err()
-}
-
-func (cuckooFilter *CuckooFilterRedis) decrLength() error {
-	return gostatix.GetRedisClient().HIncrBy(context.Background(), cuckooFilter.metadataKey, "length", -1).Err()
-}
-
-func (cuckooFilter *CuckooFilterRedis) setMetadata(length uint64) error {
-	metadata := make(map[string]interface{})
-	metadata["size"] = cuckooFilter.size
-	metadata["bucketSize"] = cuckooFilter.bucketSize
-	metadata["fingerPrintLength"] = cuckooFilter.fingerPrintLength
-	metadata["retries"] = cuckooFilter.retries
-	metadata["key"] = cuckooFilter.key
-	metadata["length"] = 0
-	return gostatix.GetRedisClient().HSet(context.Background(), cuckooFilter.metadataKey, metadata).Err()
-}
-
+// bucketRedisJSON is internal struct used to json marshal/unmarshal redis backed buckets
 type bucketRedisJSON struct {
 	Size     uint64   `json:"s"`
 	Length   uint64   `json:"l"`
@@ -192,6 +209,7 @@ type bucketRedisJSON struct {
 	Key      string   `json:"k"`
 }
 
+// cuckooFilterRedisJSON is internal struct used to json marshal/unmarshal redis backed cuckoo filter
 type cuckooFilterRedisJSON struct {
 	Size              uint64            `json:"s"`
 	BucketSize        uint64            `json:"bs"`
@@ -203,6 +221,7 @@ type cuckooFilterRedisJSON struct {
 	MetadataKey       string            `json:"mk"`
 }
 
+// Export JSON marshals the CuckooFilterRedis and returns a byte slice containing the data
 func (filter *CuckooFilterRedis) Export() ([]byte, error) {
 	bucketsJSON := make([]bucketRedisJSON, filter.size)
 	for i := uint64(0); i < filter.size; i++ {
@@ -224,6 +243,7 @@ func (filter *CuckooFilterRedis) Export() ([]byte, error) {
 	})
 }
 
+// Import JSON unmarshals the _data_ into the CuckooFilterRedis
 func (filter *CuckooFilterRedis) Import(data []byte, withNewRedisKey bool) error {
 	var f cuckooFilterRedisJSON
 	err := json.Unmarshal(data, &f)
@@ -272,6 +292,25 @@ func (aFilter CuckooFilterRedis) Equals(bFilter CuckooFilterRedis) (bool, error)
 		count++
 	}
 	return true, nil
+}
+
+func (cuckooFilter *CuckooFilterRedis) incrLength() error {
+	return gostatix.GetRedisClient().HIncrBy(context.Background(), cuckooFilter.metadataKey, "length", 1).Err()
+}
+
+func (cuckooFilter *CuckooFilterRedis) decrLength() error {
+	return gostatix.GetRedisClient().HIncrBy(context.Background(), cuckooFilter.metadataKey, "length", -1).Err()
+}
+
+func (cuckooFilter *CuckooFilterRedis) setMetadata(length uint64) error {
+	metadata := make(map[string]interface{})
+	metadata["size"] = cuckooFilter.size
+	metadata["bucketSize"] = cuckooFilter.bucketSize
+	metadata["fingerPrintLength"] = cuckooFilter.fingerPrintLength
+	metadata["retries"] = cuckooFilter.retries
+	metadata["key"] = cuckooFilter.key
+	metadata["length"] = 0
+	return gostatix.GetRedisClient().HSet(context.Background(), cuckooFilter.metadataKey, metadata).Err()
 }
 
 func (filter *CuckooFilterRedis) initBuckets() error {
