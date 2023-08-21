@@ -290,7 +290,7 @@ func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
 	return numBytes + int64(2*binary.Size(uint64(0))), err
 }
 
-// ReadFrom reads the BucketMem from the specified _stream_ and returns the
+// ReadFrom reads the BloomFilter from the specified _stream_ and returns the
 // number of bytes read.
 // It can be used to read from disk (using a file stream) or from network.
 // It's not implemented for Redis backed Bloom filter (BitSetRedis) as data for
