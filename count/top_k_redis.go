@@ -1,3 +1,17 @@
+/*
+Package count implements various probabilistic data structures used in counting.
+
+ 1. Count-Min Sketch: A probabilistic data structure used to estimate the frequency
+    of items in a data stream. Refer: http://dimacs.rutgers.edu/~graham/pubs/papers/cm-full.pdf
+ 2. Hyperloglog: A probabilistic data structure used for estimating the cardinality
+    (number of unique elements) of in a very large dataset.
+    Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+ 3. Top-K: A data structure designed to efficiently retrieve the "top-K" or "largest-K"
+    elements from a dataset based on a certain criterion, such as frequency, value, or score
+
+The package implements both in-mem and Redis backed solutions for the data structures. The
+in-memory data structures are thread-safe.
+*/
 package count
 
 import (
@@ -12,6 +26,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// In-memory TopKRedis struct.
+// _k_ is the number of top elements to track
+// _errorRate_ is the acceptable error rate in topk estimation
+// _accuracy_ is the delta in the error rate
+// _sketch_ is the redis backed count-min sketch used to keep the estimated track of counts
+// _heapKey_ is a key to Redis sorted set
+// _metadataKey_ is used to store the additional information about TopKRedis
 type TopKRedis struct {
 	k           uint
 	errorRate   float64
@@ -21,6 +42,10 @@ type TopKRedis struct {
 	metadataKey string
 }
 
+// NewTopKRedis creates new TopKRedis
+// _k_ is the number of top elements to track
+// _errorRate_ is the acceptable error rate in topk estimation
+// _accuracy_ is the delta in the error rate
 func NewTopKRedis(k uint, errorRate, accuracy float64) *TopKRedis {
 	sketch, _ := NewCountMinSketchRedisFromEstimates(errorRate, accuracy)
 	heapKey := gostatix.GenerateRandomString(16)
@@ -38,6 +63,9 @@ func NewTopKRedis(k uint, errorRate, accuracy float64) *TopKRedis {
 	return &TopKRedis{k, errorRate, accuracy, sketch, heapKey, metadataKey}
 }
 
+// NewTopKRedisFromKey is used to create a new Redis backed TopKRedis from the
+// _metadataKey_ (the Redis key used to store the metadata about the TopK) passed.
+// For this to work, value should be present in Redis at _heapKey_
 func NewTopKRedisFromKey(metadataKey string) *TopKRedis {
 	values, _ := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
 	k, _ := strconv.ParseUint(values["k"], 10, 32)
@@ -48,10 +76,14 @@ func NewTopKRedisFromKey(metadataKey string) *TopKRedis {
 	return &TopKRedis{uint(k), errorRate, accuracy, sketch, heapKey, metadataKey}
 }
 
+// MetadataKey returns the metadataKey
 func (t *TopKRedis) MetadataKey() string {
 	return t.metadataKey
 }
 
+// Insert puts the _data_ (byte slice) in the TopKRedis data structure with _count_
+// _data_ is the element to be inserted
+// _count_ is the count of the element
 func (t *TopKRedis) Insert(data []byte, count uint64) error {
 	element := string(data)
 	if count <= 0 {
@@ -100,6 +132,7 @@ func (t *TopKRedis) Insert(data []byte, count uint64) error {
 	return nil
 }
 
+// Values returns the top _k_ elements in the TopKRedis data structure
 func (t *TopKRedis) Values() ([]TopKElement, error) {
 	var results []TopKElement
 	elements, err := gostatix.GetRedisClient().ZRangeWithScores(context.Background(), t.heapKey, 0, -1).Result()
@@ -124,6 +157,7 @@ func (t *TopKRedis) Values() ([]TopKElement, error) {
 	return results, nil
 }
 
+// Equals checks if two TopKRedis structures are equal
 func (t *TopKRedis) Equals(u *TopKRedis) (bool, error) {
 	if t.k != u.k {
 		return false, fmt.Errorf("parameter k are not equal, %d and %d", t.k, u.k)
@@ -141,6 +175,7 @@ func (t *TopKRedis) Equals(u *TopKRedis) (bool, error) {
 	return t.compareHeaps(u.heapKey)
 }
 
+// Export JSON marshals the TopKRedis and returns a byte slice containing the data
 func (t *TopKRedis) Export() ([]byte, error) {
 	result, err := gostatix.GetRedisClient().ZRangeWithScores(
 		context.Background(),
@@ -164,6 +199,7 @@ func (t *TopKRedis) Export() ([]byte, error) {
 	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, heap, t.heapKey})
 }
 
+// Import JSON unmarshals the _data_ into the TopKRedis
 func (t *TopKRedis) Import(data []byte, withNewKey bool) error {
 	var topk topKJSON
 	err := json.Unmarshal(data, &topk)

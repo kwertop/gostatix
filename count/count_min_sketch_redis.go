@@ -85,6 +85,11 @@ func NewCountMinSketchRedisFromEstimates(errorRate, delta float64) (*CountMinSke
 	return NewCountMinSketchRedis(rows, columns)
 }
 
+// MetadataKey returns the metadataKey
+func (cms *CountMinSketchRedis) MetadataKey() string {
+	return cms.metadataKey
+}
+
 // UpdateOnce increments the count of _data_ in CountMinSketchRedis by 1
 func (cms *CountMinSketchRedis) UpdateOnce(data []byte) {
 	cms.Update(data, 1)
@@ -166,11 +171,6 @@ func (cms *CountMinSketchRedis) Count(data []byte) (uint64, error) {
 // CountString estimates the count of the _data_ (string) in the CountMinSketchRedis
 func (cms *CountMinSketchRedis) CountString(data string) (uint64, error) {
 	return cms.Count([]byte(data))
-}
-
-// MetadataKey returns the metadataKey
-func (cms *CountMinSketchRedis) MetadataKey() string {
-	return cms.metadataKey
 }
 
 // Merge merges two Count-Min Sketch data structures

@@ -1,3 +1,17 @@
+/*
+Package count implements various probabilistic data structures used in counting.
+
+ 1. Count-Min Sketch: A probabilistic data structure used to estimate the frequency
+    of items in a data stream. Refer: http://dimacs.rutgers.edu/~graham/pubs/papers/cm-full.pdf
+ 2. Hyperloglog: A probabilistic data structure used for estimating the cardinality
+    (number of unique elements) of in a very large dataset.
+    Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+ 3. Top-K: A data structure designed to efficiently retrieve the "top-K" or "largest-K"
+    elements from a dataset based on a certain criterion, such as frequency, value, or score
+
+The package implements both in-mem and Redis backed solutions for the data structures. The
+in-memory data structures are thread-safe.
+*/
 package count
 
 import (
@@ -50,6 +64,12 @@ func (h MinHeap) IndexOf(element string) int {
 	return -1
 }
 
+// In-memory TopK struct.
+// _k_ is the number of top elements to track
+// _errorRate_ is the acceptable error rate in topk estimation
+// _accuracy_ is the delta in the error rate
+// _sketch_ is the in-memory count-min sketch used to keep the estimated track of counts
+// _heap_ is a min heap
 type TopK struct {
 	k         uint
 	errorRate float64
@@ -58,17 +78,25 @@ type TopK struct {
 	heap      MinHeap
 }
 
+// TopKElement is the struct used to return the results of the TopK
 type TopKElement struct {
 	element string
 	count   uint64
 }
 
+// NewTopK creates new TopK
+// _k_ is the number of top elements to track
+// _errorRate_ is the acceptable error rate in topk estimation
+// _accuracy_ is the delta in the error rate
 func NewTopK(k uint, errorRate, accuracy float64) *TopK {
 	sketch, _ := NewCountMinSketchFromEstimates(errorRate, accuracy)
 	heap := &MinHeap{}
 	return &TopK{k, errorRate, accuracy, sketch, *heap}
 }
 
+// Insert puts the _data_ (byte slice) in the TopK data structure with _count_
+// _data_ is the element to be inserted
+// _count_ is the count of the element
 func (t *TopK) Insert(data []byte, count uint64) {
 	element := string(data)
 	if count <= 0 {
@@ -89,6 +117,7 @@ func (t *TopK) Insert(data []byte, count uint64) {
 	}
 }
 
+// Values returns the top _k_ elements in the TopK data structure
 func (t *TopK) Values() []TopKElement {
 	var results []TopKElement
 	for i := len(t.heap) - 1; i >= 0; i-- {
@@ -109,11 +138,13 @@ func (t *TopK) Values() []TopKElement {
 	return results
 }
 
+// internal type used to marshal/unmarshal heap elements
 type heapElementJSON struct {
 	Value     string `json:"v"`
 	Frequency uint64 `json:"f"`
 }
 
+// internal type used to marshal/unmarshal TopK
 type topKJSON struct {
 	K         uint               `json:"k"`
 	ErrorRate float64            `json:"er"`
@@ -123,6 +154,7 @@ type topKJSON struct {
 	HeapKey   string             `json:"hk"`
 }
 
+// Export JSON marshals the TopK and returns a byte slice containing the data
 func (t *TopK) Export() ([]byte, error) {
 	var sketch countMinSketchJSON
 	sketch.AllSum = t.sketch.allSum
@@ -136,6 +168,7 @@ func (t *TopK) Export() ([]byte, error) {
 	return json.Marshal(topKJSON{t.k, t.errorRate, t.accuracy, sketch, heap, ""})
 }
 
+// Import JSON unmarshals the _data_ into the TopK
 func (t *TopK) Import(data []byte) error {
 	var topk topKJSON
 	err := json.Unmarshal(data, &topk)
@@ -160,6 +193,7 @@ func (t *TopK) Import(data []byte) error {
 	return nil
 }
 
+// Equals checks if two TopK structures are equal
 func (t *TopK) Equals(u *TopK) (bool, error) {
 	if t.k != u.k {
 		return false, fmt.Errorf("parameter k are not equal, %d and %d", t.k, u.k)
@@ -181,6 +215,9 @@ func (t *TopK) Equals(u *TopK) (bool, error) {
 	return true, nil
 }
 
+// WriteTo writes the TopK onto the specified _stream_ and returns the
+// number of bytes written.
+// It can be used to write to disk (using a file stream) or to network.
 func (t *TopK) WriteTo(stream io.Writer) (int64, error) {
 	err := binary.Write(stream, binary.BigEndian, uint64(t.k))
 	if err != nil {
@@ -218,6 +255,9 @@ func (t *TopK) WriteTo(stream io.Writer) (int64, error) {
 	return numBytesSketch + numBytesHeap + int64(3*binary.Size(uint64(0))), nil
 }
 
+// ReadFrom reads the TopK from the specified _stream_ and returns the
+// number of bytes read.
+// It can be used to read from disk (using a file stream) or from network.
 func (t *TopK) ReadFrom(stream io.Reader) (int64, error) {
 	var k uint64
 	var errorRate, accuracy float64
