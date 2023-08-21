@@ -1,3 +1,17 @@
+/*
+Package count implements various probabilistic data structures used in counting.
+
+ 1. Count-Min Sketch: A probabilistic data structure used to estimate the frequency
+    of items in a data stream. Refer: http://dimacs.rutgers.edu/~graham/pubs/papers/cm-full.pdf
+ 2. Hyperloglog: A probabilistic data structure used for estimating the cardinality
+    (number of unique elements) of in a very large dataset.
+    Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+ 3. Top-K: A data structure designed to efficiently retrieve the "top-K" or "largest-K"
+    elements from a dataset based on a certain criterion, such as frequency, value, or score
+
+The package implements both in-mem and Redis backed solutions for the data structures. The
+in-memory data structures are thread-safe.
+*/
 package count
 
 import (
@@ -12,12 +26,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// CountMinSketchRedis is the Redis backed implementation of BaseCountMinSketch
+// _key_ holds the Redis key to the list which has the Redis keys of rows of data
+// _metadataKey_ is used to store the additional information about CountMinSketchRedis
+// for retrieving the sketch by the Redis key
 type CountMinSketchRedis struct {
 	AbstractCountMinSketch
 	key         string
 	metadataKey string
 }
 
+// // NewCountMinSketchRedis creates CountMinSketchRedis with _rows_ and _columns_
 func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 	if rows <= 0 || columns <= 0 {
 		return nil, errors.New("gostatix: rows and columns size should be greater than 0")
@@ -38,6 +57,9 @@ func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 	return sketch, nil
 }
 
+// NewCountMinSketchRedisFromKey is used to create a new Redis backed CountMinSketchRedis from the
+// _metadataKey_ (the Redis key used to store the metadata about the count-min sketch) passed.
+// For this to work, value should be present in Redis at _key_
 func NewCountMinSketchRedisFromKey(metadataKey string) (*CountMinSketchRedis, error) {
 	values, err := gostatix.GetRedisClient().HGetAll(context.Background(), metadataKey).Result()
 	if err != nil {
@@ -54,16 +76,21 @@ func NewCountMinSketchRedisFromKey(metadataKey string) (*CountMinSketchRedis, er
 	return sketch, nil
 }
 
+// NewCountMinSketchRedisFromEstimates creates a new CountMinSketchRedis based upon the desired
+// _errorRate_ and _delta_
+// rows and columns are calculated based upon these supplied values
 func NewCountMinSketchRedisFromEstimates(errorRate, delta float64) (*CountMinSketchRedis, error) {
 	columns := uint(math.Ceil(math.E / errorRate))
 	rows := uint(math.Ceil(math.Log(1 / delta)))
 	return NewCountMinSketchRedis(rows, columns)
 }
 
+// UpdateOnce increments the count of _data_ in CountMinSketchRedis by 1
 func (cms *CountMinSketchRedis) UpdateOnce(data []byte) {
 	cms.Update(data, 1)
 }
 
+// Update increments the count of _data_ (byte slice) in CountMinSketchRedis by value _count_ passed
 func (cms *CountMinSketchRedis) Update(data []byte, count uint64) error {
 	updateLists := redis.NewScript(`
 		local size = ARGV[1]
@@ -97,10 +124,12 @@ func (cms *CountMinSketchRedis) Update(data []byte, count uint64) error {
 	return nil
 }
 
+// UpdateString increments the count of _data_ (string) in CountMinSketchRedis by value _count_ passed
 func (cms *CountMinSketchRedis) UpdateString(data string, count uint64) error {
 	return cms.Update([]byte(data), count)
 }
 
+// Count estimates the count of the _data_ (byte slice) in the CountMinSketchRedis
 func (cms *CountMinSketchRedis) Count(data []byte) (uint64, error) {
 	countLists := redis.NewScript(`
 		local size = ARGV[1]
@@ -134,14 +163,17 @@ func (cms *CountMinSketchRedis) Count(data []byte) (uint64, error) {
 	return minVal, nil
 }
 
+// CountString estimates the count of the _data_ (string) in the CountMinSketchRedis
 func (cms *CountMinSketchRedis) CountString(data string) (uint64, error) {
 	return cms.Count([]byte(data))
 }
 
+// MetadataKey returns the metadataKey
 func (cms *CountMinSketchRedis) MetadataKey() string {
 	return cms.metadataKey
 }
 
+// Merge merges two Count-Min Sketch data structures
 func (cms *CountMinSketchRedis) Merge(cms1 *CountMinSketchRedis) error {
 	if cms.rows != cms1.rows {
 		return fmt.Errorf("gostatix: can't merge sketches with unequal row counts, %d and %d", cms.rows, cms1.rows)
@@ -152,11 +184,39 @@ func (cms *CountMinSketchRedis) Merge(cms1 *CountMinSketchRedis) error {
 	return cms.mergeMatrix(cms1.key)
 }
 
+// Equals checks if two CountMinSketchRedis are equal
 func (cms *CountMinSketchRedis) Equals(cms1 *CountMinSketchRedis) (bool, error) {
 	if cms.rows != cms1.rows || cms.columns != cms1.columns {
 		return false, nil
 	}
 	return cms.compareMatrix(cms1.key)
+}
+
+// Export JSON marshals the CountMinSketchRedis and returns a byte slice containing the data
+func (cms *CountMinSketchRedis) Export() ([]byte, error) {
+	matrix, err := cms.getMatrix()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(countMinSketchJSON{cms.rows, cms.columns, cms.allSum, matrix, cms.key})
+}
+
+// Import JSON unmarshals the _data_ into the CountMinSketchRedis
+func (cms *CountMinSketchRedis) Import(data []byte, withNewKey bool) error {
+	var s countMinSketchJSON
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+	cms.rows = s.Rows
+	cms.columns = s.Columns
+	cms.allSum = s.AllSum
+	if withNewKey {
+		cms.key = gostatix.GenerateRandomString(16)
+	} else {
+		cms.key = s.Key
+	}
+	return cms.setMatrix(s.Matrix)
 }
 
 func (cms *CountMinSketchRedis) compareMatrix(key string) (bool, error) {
@@ -338,29 +398,4 @@ func (cms *CountMinSketchRedis) setMatrix(matrix [][]uint64) error {
 		return fmt.Errorf("gostatix: couldn't save matrix in redis")
 	}
 	return nil
-}
-
-func (cms *CountMinSketchRedis) Export() ([]byte, error) {
-	matrix, err := cms.getMatrix()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(countMinSketchJSON{cms.rows, cms.columns, cms.allSum, matrix, cms.key})
-}
-
-func (cms *CountMinSketchRedis) Import(data []byte, withNewKey bool) error {
-	var s countMinSketchJSON
-	err := json.Unmarshal(data, &s)
-	if err != nil {
-		return err
-	}
-	cms.rows = s.Rows
-	cms.columns = s.Columns
-	cms.allSum = s.AllSum
-	if withNewKey {
-		cms.key = gostatix.GenerateRandomString(16)
-	} else {
-		cms.key = s.Key
-	}
-	return cms.setMatrix(s.Matrix)
 }
