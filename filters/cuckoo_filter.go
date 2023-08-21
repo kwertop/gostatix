@@ -1,3 +1,8 @@
+/*
+Package filters provides data structures and methods for creating probabilistic filters.
+This package provides implementations of two of the most widely used filters,
+Bloom Filter and Cuckoo Filter.
+*/
 package filters
 
 import (
