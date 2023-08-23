@@ -33,44 +33,44 @@ func fromDataMem(data []uint64) *BitSetMem {
 }
 
 // Size returns the size of the bitset
-func (bitSet BitSetMem) Size() uint {
+func (bitSet BitSetMem) getSize() uint {
 	return bitSet.size
 }
 
 // Has checks if the bit at index _index_ is set
-func (bitSet BitSetMem) Has(index uint) (bool, error) {
+func (bitSet BitSetMem) has(index uint) (bool, error) {
 	return bitSet.set.Test(index), nil
 }
 
 // HasMulti checks if the bit at the indices
 // specified by _indexes_ array is set
-func (bitSet BitSetMem) HasMulti(indexes []uint) ([]bool, error) {
+func (bitSet BitSetMem) hasMulti(indexes []uint) ([]bool, error) {
 	return nil, nil //not implemented
 }
 
-func (bitSet BitSetMem) InsertMulti(indexes []uint) (bool, error) {
+func (bitSet BitSetMem) insertMulti(indexes []uint) (bool, error) {
 	return false, nil //not implemented
 }
 
 // Insert sets the bit at index specified by _index_
-func (bitSet BitSetMem) Insert(index uint) (bool, error) {
+func (bitSet BitSetMem) insert(index uint) (bool, error) {
 	bitSet.set.Set(index)
 	return true, nil
 }
 
 // Max returns the first set bit in the bitset starting from index 0
-func (bitSet BitSetMem) Max() (uint, bool) {
+func (bitSet BitSetMem) max() (uint, bool) {
 	index, ok := bitSet.set.NextSet(0)
 	return index, ok
 }
 
 // BitCount returns the total number of set bits in the bitset
-func (bitSet BitSetMem) BitCount() (uint, error) {
+func (bitSet BitSetMem) bitCount() (uint, error) {
 	return bitSet.set.Count(), nil
 }
 
 // Export returns the json marshalling of the bitset
-func (bitSet BitSetMem) Export() (uint, []byte, error) {
+func (bitSet BitSetMem) marshal() (uint, []byte, error) {
 	data, err := bitSet.set.MarshalJSON()
 	if err != nil {
 		return 0, nil, err
@@ -79,7 +79,7 @@ func (bitSet BitSetMem) Export() (uint, []byte, error) {
 }
 
 // ExportBinary returns the binary marshalling of the bitset
-func (bitSet BitSetMem) ExportBinary() (uint, []byte, error) {
+func (bitSet BitSetMem) exportBinary() (uint, []byte, error) {
 	data, err := bitSet.set.MarshalBinary()
 	if err != nil {
 		return 0, nil, err
@@ -88,7 +88,7 @@ func (bitSet BitSetMem) ExportBinary() (uint, []byte, error) {
 }
 
 // Import imports the marshalled json in the byte array data into the redis bitset
-func (bitSet *BitSetMem) Import(data []byte) (bool, error) {
+func (bitSet *BitSetMem) unmarshal(data []byte) (bool, error) {
 	err := bitSet.set.UnmarshalJSON(data)
 	bitSet.size = bitSet.set.Len()
 	if err != nil {
@@ -98,7 +98,7 @@ func (bitSet *BitSetMem) Import(data []byte) (bool, error) {
 }
 
 // Equals checks if two BitSetMem are equal or not
-func (firstBitSet *BitSetMem) Equals(otherBitSet IBitSet) (bool, error) {
+func (firstBitSet *BitSetMem) equals(otherBitSet IBitSet) (bool, error) {
 	secondBitSet, ok := otherBitSet.(*BitSetMem)
 	if !ok {
 		return false, fmt.Errorf("invalid bitset type, should be BitSetMem, type: %v", secondBitSet)
@@ -107,7 +107,7 @@ func (firstBitSet *BitSetMem) Equals(otherBitSet IBitSet) (bool, error) {
 }
 
 // WriteTo writes the bitset to a stream and returns the number of bytes written onto the stream
-func (bitSet *BitSetMem) WriteTo(stream io.Writer) (int64, error) {
+func (bitSet *BitSetMem) writeTo(stream io.Writer) (int64, error) {
 	err := binary.Write(stream, binary.BigEndian, uint64(bitSet.size))
 	if err != nil {
 		return 0, err
@@ -120,7 +120,7 @@ func (bitSet *BitSetMem) WriteTo(stream io.Writer) (int64, error) {
 }
 
 // ReadFrom reads the stream and imports it into the bitset and returns the number of bytes read
-func (bitSet *BitSetMem) ReadFrom(stream io.Reader) (int64, error) {
+func (bitSet *BitSetMem) readFrom(stream io.Reader) (int64, error) {
 	var size uint64
 	err := binary.Read(stream, binary.BigEndian, &size)
 	if err != nil {

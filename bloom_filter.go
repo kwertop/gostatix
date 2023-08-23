@@ -42,11 +42,11 @@ type BloomFilter struct {
 // _filter_ is either BitSetMem or BitSetRedis
 // _metadataKey_ is needed if the filter is of type BitSetRedis otherwise it's overlooked
 func NewBloomFilterWithBitSet(size, numHashes uint, filter IBitSet, metadataKey string) (*BloomFilter, error) {
-	if !IsBitSetMem(filter) && metadataKey == "" {
+	if !isBitSetMem(filter) && metadataKey == "" {
 		return nil, fmt.Errorf("gostatix: error initializing filter as metadataKey is blank for BitSetRedis")
 	}
-	if filter.Size() != size {
-		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
+	if filter.getSize() != size {
+		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.getSize(), size)
 	}
 	return &BloomFilter{
 		size:        util.Max(size, 1),
@@ -65,12 +65,12 @@ func NewBloomFilterWithBitSet(size, numHashes uint, filter IBitSet, metadataKey 
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := util.CalculateFilterSize(numItems, errorRate)
 	numHashes := util.CalculateNumHashes(size, numItems)
-	filter := NewBitSetRedis(size)
+	filter := newBitSetRedis(size)
 	metadataKey := util.GenerateRandomString(16)
 	metadata := make(map[string]interface{})
 	metadata["size"] = size
 	metadata["numHashes"] = numHashes
-	metadata["bitsetKey"] = filter.Key()
+	metadata["bitsetKey"] = filter.getKey()
 	err := getRedisClient().HSet(context.Background(), metadataKey, metadata).Err()
 	if err != nil {
 		return nil, fmt.Errorf("gostatix: error while creating bloom filter redis. error: %v", err)
@@ -100,7 +100,7 @@ func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter,
 	if err != nil {
 		return nil, fmt.Errorf("gostatix: error while creating bloom filter redis. error: %v", err)
 	}
-	bitSetRedis, err := FromDataRedis(data)
+	bitSetRedis, err := fromDataRedis(data)
 	if err != nil {
 		return nil, err
 	}
@@ -134,29 +134,29 @@ func NewRedisBloomFilterFromKey(metadataKey string) (*BloomFilter, error) {
 	bloomFilter.numHashes = uint(numHashes)
 	bloomFilter.metadataKey = metadataKey
 	bitsetKey := values["bitsetKey"]
-	filter, _ := FromRedisKey(bitsetKey)
+	filter, _ := fromRedisKey(bitsetKey)
 	bloomFilter.filter = filter
 	return bloomFilter, nil
 }
 
 // Insert writes new _data_ in the bloom filter
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
-	if IsBitSetMem(bloomFilter.filter) {
+	if isBitSetMem(bloomFilter.filter) {
 		bloomFilter.lock.Lock()
 		defer bloomFilter.lock.Unlock()
 	}
 
 	hashes := getHashes(data)
-	if IsBitSetMem(bloomFilter.filter) {
+	if isBitSetMem(bloomFilter.filter) {
 		for i := uint(0); i < bloomFilter.numHashes; i++ {
-			bloomFilter.filter.Insert(bloomFilter.getIndex(hashes, i))
+			bloomFilter.filter.insert(bloomFilter.getIndex(hashes, i))
 		}
 	} else {
 		indexes := make([]uint, bloomFilter.numHashes)
 		for i := uint(0); i < bloomFilter.numHashes; i++ {
 			indexes[i] = bloomFilter.getIndex(hashes, i)
 		}
-		bloomFilter.filter.InsertMulti(indexes)
+		bloomFilter.filter.insertMulti(indexes)
 	}
 	return bloomFilter
 }
@@ -187,7 +187,7 @@ func (bloomFilter *BloomFilter) GetMetadataKey() string {
 // Lookup returns true if the corresponding bits in the bitset for _data_ is set,
 // otherwise false
 func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
-	if IsBitSetMem(bloomFilter.filter) {
+	if isBitSetMem(bloomFilter.filter) {
 		bloomFilter.lock.Lock()
 		defer bloomFilter.lock.Unlock()
 	}
@@ -195,7 +195,7 @@ func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
 	hashes := getHashes(data)
 	// if bitset.IsBitSetMem(bloomFilter.filter) {
 	for i := uint(0); i < bloomFilter.numHashes; i++ {
-		if ok, _ := bloomFilter.filter.Has(bloomFilter.getIndex(hashes, i)); !ok {
+		if ok, _ := bloomFilter.filter.has(bloomFilter.getIndex(hashes, i)); !ok {
 			return false
 		}
 	}
@@ -227,7 +227,7 @@ func (bloomFilter *BloomFilter) LookupString(data string) bool {
 
 // BloomPositiveRate returns the false positive error rate of the filter
 func (bloomFilter *BloomFilter) BloomPositiveRate() float64 {
-	length, _ := bloomFilter.filter.BitCount()
+	length, _ := bloomFilter.filter.bitCount()
 	return math.Pow(1-math.Exp(-float64(length)/float64(bloomFilter.size)), float64(bloomFilter.numHashes))
 }
 
@@ -236,7 +236,7 @@ func (aFilter *BloomFilter) Equals(bFilter *BloomFilter) (bool, error) {
 	if aFilter.size != bFilter.size || aFilter.numHashes != bFilter.numHashes {
 		return false, nil
 	}
-	ok, err := aFilter.filter.Equals(bFilter.filter)
+	ok, err := aFilter.filter.equals(bFilter.filter)
 	if err != nil {
 		return false, err
 	}
@@ -252,7 +252,7 @@ type bloomFilterType struct {
 
 // Export JSON marshals the BloomFilter and returns a byte slice containing the data
 func (bloomFilter *BloomFilter) Export() ([]byte, error) {
-	_, bitset, err := bloomFilter.filter.Export()
+	_, bitset, err := bloomFilter.filter.marshal()
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +268,7 @@ func (bloomFilter *BloomFilter) Import(data []byte) error {
 	}
 	bloomFilter.size = f.M
 	bloomFilter.numHashes = f.K
-	_, err = bloomFilter.filter.Import(f.B)
+	_, err = bloomFilter.filter.unmarshal(f.B)
 	return err
 }
 
@@ -278,7 +278,7 @@ func (bloomFilter *BloomFilter) Import(data []byte) error {
 // It's not implemented for Redis backed Bloom filter (BitSetRedis) as data for
 // a Redis backed Bloom Filter is already there in Redis.
 func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
-	if !IsBitSetMem(bloomFilter.filter) {
+	if !isBitSetMem(bloomFilter.filter) {
 		return 0, fmt.Errorf("stream write doesn't support bitset redis")
 	}
 	err := binary.Write(stream, binary.BigEndian, uint64(bloomFilter.size))
@@ -289,7 +289,7 @@ func (bloomFilter *BloomFilter) WriteTo(stream io.Writer) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	numBytes, err := bloomFilter.filter.WriteTo(stream)
+	numBytes, err := bloomFilter.filter.writeTo(stream)
 	return numBytes + int64(2*binary.Size(uint64(0))), err
 }
 
@@ -310,7 +310,7 @@ func (bloomFilter *BloomFilter) ReadFrom(stream io.Reader) (int64, error) {
 		return 0, err
 	}
 	bitSet := &BitSetMem{}
-	numBytes, err := bitSet.ReadFrom(stream)
+	numBytes, err := bitSet.readFrom(stream)
 	if err != nil {
 		return 0, err
 	}

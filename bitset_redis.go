@@ -31,7 +31,7 @@ type BitSetRedis struct {
 }
 
 // NewBitSetRedis creates a new BitSetRedis of size _size_
-func NewBitSetRedis(size uint) *BitSetRedis {
+func newBitSetRedis(size uint) *BitSetRedis {
 	bytes := make([]byte, size)
 	for i := range bytes {
 		bytes[i] = 0x00
@@ -43,8 +43,8 @@ func NewBitSetRedis(size uint) *BitSetRedis {
 
 // FromDataRedis creates an instance of BitSetRedis after
 // inserting the data passed in a redis bitset
-func FromDataRedis(data []uint64) (*BitSetRedis, error) {
-	bitSetRedis := NewBitSetRedis(uint(len(data) * wordSize))
+func fromDataRedis(data []uint64) (*BitSetRedis, error) {
+	bitSetRedis := newBitSetRedis(uint(len(data) * wordSize))
 	bytes, err := uint64ArrayToByteArray(data)
 	if err != nil {
 		return nil, err
@@ -58,29 +58,29 @@ func FromDataRedis(data []uint64) (*BitSetRedis, error) {
 
 // FromRedisKey creates an instance of BitSetRedis from the
 // bitset data structure saved at redis key _key_
-func FromRedisKey(key string) (*BitSetRedis, error) {
+func fromRedisKey(key string) (*BitSetRedis, error) {
 	setVal, err := getRedisClient().Get(context.Background(), key).Result()
 	if err != nil {
 		return nil, err
 	}
 	setValBytes := []byte(setVal)
-	bitSetRedis := NewBitSetRedis(uint(len(setValBytes) * wordBytes))
+	bitSetRedis := newBitSetRedis(uint(len(setValBytes) * wordBytes))
 	bitSetRedis.key = key
 	return bitSetRedis, nil
 }
 
 // Size returns the size of the bitset saved in redis
-func (bitSet BitSetRedis) Size() uint {
+func (bitSet BitSetRedis) getSize() uint {
 	return bitSet.size
 }
 
 // Key gives the key at which the bitset is saved in redis
-func (bitSet BitSetRedis) Key() string {
+func (bitSet BitSetRedis) getKey() string {
 	return bitSet.key
 }
 
 // Has checks if the bit at index _index_ is set
-func (bitSet BitSetRedis) Has(index uint) (bool, error) {
+func (bitSet BitSetRedis) has(index uint) (bool, error) {
 	val, err := getRedisClient().GetBit(context.Background(), bitSet.key, int64(index)).Result()
 	if err != nil {
 		return false, err
@@ -90,7 +90,7 @@ func (bitSet BitSetRedis) Has(index uint) (bool, error) {
 
 // HasMulti checks if the bit at the indices
 // specified by _indexes_ array is set
-func (bitSet BitSetRedis) HasMulti(indexes []uint) ([]bool, error) {
+func (bitSet BitSetRedis) hasMulti(indexes []uint) ([]bool, error) {
 	if len(indexes) == 0 {
 		return nil, fmt.Errorf("gostatix: at least 1 index is required")
 	}
@@ -112,7 +112,7 @@ func (bitSet BitSetRedis) HasMulti(indexes []uint) ([]bool, error) {
 }
 
 // Insert sets the bit at index specified by _index_
-func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
+func (bitSet BitSetRedis) insert(index uint) (bool, error) {
 	err := getRedisClient().SetBit(context.Background(), bitSet.key, int64(index), 1).Err()
 	if err != nil {
 		return false, err
@@ -121,7 +121,7 @@ func (bitSet BitSetRedis) Insert(index uint) (bool, error) {
 }
 
 // Insert sets the bits at indices specified by array _indexes_
-func (bitSet BitSetRedis) InsertMulti(indexes []uint) (bool, error) {
+func (bitSet BitSetRedis) insertMulti(indexes []uint) (bool, error) {
 	if len(indexes) == 0 {
 		return false, fmt.Errorf("gostatix: at least 1 index is required")
 	}
@@ -138,7 +138,7 @@ func (bitSet BitSetRedis) InsertMulti(indexes []uint) (bool, error) {
 }
 
 // Equals checks if two BitSetRedis are equal or not
-func (aSet BitSetRedis) Equals(otherBitSet IBitSet) (bool, error) {
+func (aSet BitSetRedis) equals(otherBitSet IBitSet) (bool, error) {
 	bSet, ok := otherBitSet.(*BitSetRedis)
 	if !ok {
 		return false, fmt.Errorf("invalid bitset type, should be BitSetRedis")
@@ -155,7 +155,7 @@ func (aSet BitSetRedis) Equals(otherBitSet IBitSet) (bool, error) {
 }
 
 // Max returns the first set bit in the bitset starting from index 0
-func (bitSet BitSetRedis) Max() (uint, bool) {
+func (bitSet BitSetRedis) max() (uint, bool) {
 	index, err := getRedisClient().BitPos(context.Background(), bitSet.key, 1).Result()
 	if err != nil || index == -1 {
 		return 0, false
@@ -164,7 +164,7 @@ func (bitSet BitSetRedis) Max() (uint, bool) {
 }
 
 // BitCount returns the total number of set bits in the bitset saved in redis
-func (bitSet BitSetRedis) BitCount() (uint, error) {
+func (bitSet BitSetRedis) bitCount() (uint, error) {
 	bitRange := &redis.BitCount{Start: 0, End: -1}
 	val, err := getRedisClient().BitCount(context.Background(), bitSet.key, bitRange).Result()
 	if err != nil {
@@ -174,7 +174,7 @@ func (bitSet BitSetRedis) BitCount() (uint, error) {
 }
 
 // Export returns the json marshalling of the bitset saved in redis
-func (bitSet BitSetRedis) Export() (uint, []byte, error) {
+func (bitSet BitSetRedis) marshal() (uint, []byte, error) {
 	val, err := getRedisClient().Get(context.Background(), bitSet.key).Result()
 	if err != nil {
 		return 0, nil, err
@@ -195,7 +195,7 @@ func (bitSet BitSetRedis) Export() (uint, []byte, error) {
 }
 
 // Import imports the marshalled json in the byte array data into the redis bitset
-func (bitSet *BitSetRedis) Import(data []byte) (bool, error) {
+func (bitSet *BitSetRedis) unmarshal(data []byte) (bool, error) {
 	var s string
 	err := json.Unmarshal(data, &s)
 	if err != nil {
@@ -235,10 +235,10 @@ func uint64ArrayToByteArray(data []uint64) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (bitSet *BitSetRedis) WriteTo(stream io.Writer) (int64, error) {
+func (bitSet *BitSetRedis) writeTo(stream io.Writer) (int64, error) {
 	return 0, nil //bitsetredis doesn't implement WriteTo function
 }
 
-func (bitSet *BitSetRedis) ReadFrom(stream io.Reader) (int64, error) {
+func (bitSet *BitSetRedis) readFrom(stream io.Reader) (int64, error) {
 	return 0, nil //bitsetredis doesn't implement ReadFrom function
 }
