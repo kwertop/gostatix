@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/kwertop/gostatix"
 )
 
 func TestHyperLogLog(t *testing.T) {
@@ -37,7 +39,7 @@ func TestHyperLogLogMerge(t *testing.T) {
 	h.Merge(f)
 
 	for i := range h.registers {
-		if h.registers[i] != uint8(max(uint(f.registers[i]), uint(g.registers[i]))) {
+		if h.registers[i] != uint8(gostatix.Max(uint(f.registers[i]), uint(g.registers[i]))) {
 			t.Error("value doesn't match expected")
 		}
 	}

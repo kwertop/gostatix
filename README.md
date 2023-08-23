@@ -25,7 +25,7 @@ package main
 import (
     "fmt"
 
-    "github.com/kwertop/gostatix/filters"
+    "github.com/kwertop/filters"
 )
 
 func main() {

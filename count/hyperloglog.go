@@ -21,6 +21,8 @@ import (
 	"io"
 	"math"
 	"sync"
+
+	"github.com/kwertop/gostatix"
 )
 
 // HyperLogLog struct. This is an in-memory implementation of HyperLogLog.
@@ -59,7 +61,7 @@ func (h *HyperLogLog) Update(data []byte) {
 	defer h.lock.Unlock()
 
 	registerIndex, count := h.getRegisterIndexAndCount(data)
-	h.registers[registerIndex] = uint8(max(uint(h.registers[registerIndex]), uint(count)))
+	h.registers[registerIndex] = uint8(gostatix.Max(uint(h.registers[registerIndex]), uint(count)))
 }
 
 // Count returns the number of distinct elements so far
@@ -82,7 +84,7 @@ func (h *HyperLogLog) Merge(g *HyperLogLog) error {
 		return fmt.Errorf("gostatix: number of registers %d, %d don't match", h.numRegisters, g.numRegisters)
 	}
 	for i := range g.registers {
-		h.registers[i] = uint8(max(uint(h.registers[i]), uint(g.registers[i])))
+		h.registers[i] = uint8(gostatix.Max(uint(h.registers[i]), uint(g.registers[i])))
 	}
 	return nil
 }

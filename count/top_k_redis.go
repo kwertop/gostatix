@@ -48,8 +48,8 @@ type TopKRedis struct {
 // _accuracy_ is the delta in the error rate
 func NewTopKRedis(k uint, errorRate, accuracy float64) *TopKRedis {
 	sketch, _ := NewCountMinSketchRedisFromEstimates(errorRate, accuracy)
-	heapKey := generateRandomString(16)
-	metadataKey := generateRandomString(16)
+	heapKey := gostatix.GenerateRandomString(16)
+	metadataKey := gostatix.GenerateRandomString(16)
 	metadata := make(map[string]interface{})
 	metadata["k"] = k
 	metadata["heapKey"] = heapKey
@@ -210,7 +210,7 @@ func (t *TopKRedis) Import(data []byte, withNewKey bool) error {
 	t.accuracy = topk.Accuracy
 	t.errorRate = topk.ErrorRate
 	if withNewKey {
-		t.heapKey = generateRandomString(16)
+		t.heapKey = gostatix.GenerateRandomString(16)
 	} else {
 		t.heapKey = topk.HeapKey
 	}

@@ -40,9 +40,9 @@ func NewCuckooFilterRedis(size, bucketSize, fingerPrintLength uint64) (*CuckooFi
 // _retries_ is the number of retries that the Cuckoo filter makes if the first two indices obtained
 // after hashing the input is already occupied in the filter
 func NewCuckooFilterRedisWithRetries(size, bucketSize, fingerPrintLength, retries uint64) (*CuckooFilterRedis, error) {
-	filterKey := generateRandomString(16)
+	filterKey := gostatix.GenerateRandomString(16)
 	baseFilter := MakeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries)
-	metadataKey := generateRandomString(16)
+	metadataKey := gostatix.GenerateRandomString(16)
 	filter := &CuckooFilterRedis{make(map[string]*buckets.BucketRedis, size), filterKey, metadataKey, baseFilter}
 	err := filter.setMetadata(0)
 	if err != nil {
@@ -63,7 +63,7 @@ func NewCuckooFilterRedisWithRetries(size, bucketSize, fingerPrintLength, retrie
 // _errorRate_ is the desired false positive rate of the filter. fingerPrintLength is calculated
 // according to this error rate.
 func NewCuckooFilterRedisWithErrorRate(size, bucketSize, retries uint64, errorRate float64) (*CuckooFilterRedis, error) {
-	fingerPrintLength := calculateFingerPrintLength(size, errorRate)
+	fingerPrintLength := gostatix.CalculateFingerPrintLength(size, errorRate)
 	capacity := uint64(math.Ceil(float64(size) * 0.955 / float64(bucketSize)))
 	return NewCuckooFilterRedisWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }
@@ -255,8 +255,8 @@ func (filter *CuckooFilterRedis) Import(data []byte, withNewRedisKey bool) error
 	filter.fingerPrintLength = f.FingerPrintLength
 	filter.retries = f.Retries
 	if withNewRedisKey {
-		filter.key = generateRandomString(16)
-		filter.metadataKey = generateRandomString(16)
+		filter.key = gostatix.GenerateRandomString(16)
+		filter.metadataKey = gostatix.GenerateRandomString(16)
 	} else {
 		filter.key = f.Key
 		filter.metadataKey = f.MetadataKey

@@ -50,8 +50,8 @@ func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet, metad
 		return nil, fmt.Errorf("gostatix: error initializing filter as size of bitset %v doesn't match with size %v passed", filter.Size(), size)
 	}
 	return &BloomFilter{
-		size:        max(size, 1),
-		numHashes:   max(numHashes, 1),
+		size:        gostatix.Max(size, 1),
+		numHashes:   gostatix.Max(numHashes, 1),
 		filter:      filter,
 		metadataKey: metadataKey,
 	}, nil
@@ -64,10 +64,10 @@ func NewBloomFilterWithBitSet(size, numHashes uint, filter bitset.IBitSet, metad
 // metadataKey is created using a random alpha-numeric generator which can be retrieved using
 // MetadataKey() method
 func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
-	size := calculateFilterSize(numItems, errorRate)
-	numHashes := calculateNumHashes(size, numItems)
+	size := gostatix.CalculateFilterSize(numItems, errorRate)
+	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetRedis(size)
-	metadataKey := generateRandomString(16)
+	metadataKey := gostatix.GenerateRandomString(16)
 	metadata := make(map[string]interface{})
 	metadata["size"] = size
 	metadata["numHashes"] = numHashes
@@ -84,19 +84,19 @@ func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*Bloom
 // _errorRate_ is the acceptable false positive error rate
 // Based upon the above two parameters passed, the size of the bloom filter is calculated
 func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
-	size := calculateFilterSize(numItems, errorRate)
-	numHashes := calculateNumHashes(size, numItems)
+	size := gostatix.CalculateFilterSize(numItems, errorRate)
+	numHashes := gostatix.CalculateNumHashes(size, numItems)
 	filter := bitset.NewBitSetMem(size)
-	return NewBloomFilterWithBitSet(max(size, 1), max(numHashes, 1), filter, "")
+	return NewBloomFilterWithBitSet(gostatix.Max(size, 1), gostatix.Max(numHashes, 1), filter, "")
 }
 
 // NewRedisBloomFilterFromBitSet creates and returns a new Redis backed BloomFilter from the
 // bitset passed in the parameter _data_
 // _numHashes_ parameter is needed for the number of hashing functions
 func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter, error) {
-	size := max(uint(len(data)*64), 1)
-	numHashes = max(numHashes, 1)
-	metadataKey := generateRandomString(16)
+	size := gostatix.Max(uint(len(data)*64), 1)
+	numHashes = gostatix.Max(numHashes, 1)
+	metadataKey := gostatix.GenerateRandomString(16)
 	err := gostatix.GetRedisClient().HSet(context.Background(), metadataKey, map[string]interface{}{"size": size, "numHashes": numHashes}).Err()
 	if err != nil {
 		return nil, fmt.Errorf("gostatix: error while creating bloom filter redis. error: %v", err)
@@ -117,7 +117,7 @@ func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter,
 // _numHashes_ parameter is needed for the number of hashing functions
 func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 	size := uint(len(data) * 64)
-	return &BloomFilter{size: max(size, 1), numHashes: max(numHashes, 1), filter: bitset.FromDataMem(data)}
+	return &BloomFilter{size: gostatix.Max(size, 1), numHashes: gostatix.Max(numHashes, 1), filter: bitset.FromDataMem(data)}
 }
 
 // NewRedisBloomFilterFromKey is used to create a new Redis backed BloomFilter from the

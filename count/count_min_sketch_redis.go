@@ -42,8 +42,8 @@ func NewCountMinSketchRedis(rows, columns uint) (*CountMinSketchRedis, error) {
 		return nil, errors.New("gostatix: rows and columns size should be greater than 0")
 	}
 	abstractSketch := MakeAbstractCountMinSketch(rows, columns, 0)
-	key := generateRandomString(16)
-	metadataKey := generateRandomString(16)
+	key := gostatix.GenerateRandomString(16)
+	metadataKey := gostatix.GenerateRandomString(16)
 	sketch := &CountMinSketchRedis{*abstractSketch, key, metadataKey}
 	metadata := make(map[string]interface{})
 	metadata["rows"] = sketch.rows
@@ -212,7 +212,7 @@ func (cms *CountMinSketchRedis) Import(data []byte, withNewKey bool) error {
 	cms.columns = s.Columns
 	cms.allSum = s.AllSum
 	if withNewKey {
-		cms.key = generateRandomString(16)
+		cms.key = gostatix.GenerateRandomString(16)
 	} else {
 		cms.key = s.Key
 	}
@@ -365,7 +365,7 @@ func (cms *CountMinSketchRedis) getMatrix() ([][]uint64, error) {
 }
 
 func (cms *CountMinSketchRedis) setMatrix(matrix [][]uint64) error {
-	flattenedMatrix := flatten(matrix)
+	flattenedMatrix := gostatix.Flatten(matrix)
 	args := make([]interface{}, len(flattenedMatrix)+1)
 	args[0] = interface{}(len(matrix[0]))
 	for i := range flattenedMatrix {
