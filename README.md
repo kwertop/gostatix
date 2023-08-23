@@ -1,4 +1,4 @@
-GoStatix
+GoStatix ![example workflow](https://github.com/github/docs/actions/workflows/main.yml/badge.svg)
 ==========
 
 Thread-safe and persistent Golang implementations of probabilistic data structures: Bloom Filter, Cuckoo Filter, HyperLogLog, Count-Min Sketch and Top-K
