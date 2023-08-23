@@ -1,12 +1,13 @@
 GoStatix
 ==========
 
-# Thread-safe and persistent Golang implementations of probabilistic data structures: Bloom Filter, Cuckoo Filter, HyperLogLog, Count-Min Sketch and Top-K
+Thread-safe and persistent Golang implementations of probabilistic data structures: Bloom Filter, Cuckoo Filter, HyperLogLog, Count-Min Sketch and Top-K
 
-This package provides two implementations of the data structures (a) in-memory (b) Redis backed. While keeping data in-memory has the advantages of being higly performant and yielding high throughput, it doesn't serve use cases of portability or communication of the underlying data so well. Take, for example, a setup where two applications are running to fulfill a goal. One of them writes the data and the other reads from it taking decisions based upon that. In this case, there should be a mechanism to share the underlying data structure for the two applications to do their tasks. With some trade-off to performance, this package solves that problem using Redis as the intermediate storage layer to achieve the same.
+# About
+
+This package provides two implementations of the data structures _(a)_ In-memory _(b)_ Redis backed. While keeping data in-memory has the advantages of being higly performant and yielding high throughput, it doesn't serve use cases of portability or communication of the underlying data so well. Take, for example, a setup where two applications are running to fulfill a goal. One of them writes the data and the other reads from it taking decisions based upon that. In this case, there should be a mechanism to share the underlying data structure for the two applications to do their tasks. With some trade-off to performance, this package solves that problem using Redis as the intermediate storage layer to achieve the same.
 
 # Quick Start
-===========
 
 ## Install
 
