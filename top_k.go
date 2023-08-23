@@ -24,30 +24,30 @@ import (
 	"strings"
 )
 
-type HeapElement struct {
+type heapElement struct {
 	value     string
 	frequency uint64
 }
 
-type MinHeap []HeapElement
+type minHeap []heapElement
 
-func (h MinHeap) Len() int {
+func (h minHeap) Len() int {
 	return len(h)
 }
 
-func (h MinHeap) Less(i, j int) bool {
+func (h minHeap) Less(i, j int) bool {
 	return h[i].frequency < h[j].frequency
 }
 
-func (h MinHeap) Swap(i, j int) {
+func (h minHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
-func (h *MinHeap) Push(x any) {
-	*h = append(*h, x.(HeapElement))
+func (h *minHeap) Push(x any) {
+	*h = append(*h, x.(heapElement))
 }
 
-func (h *MinHeap) Pop() any {
+func (h *minHeap) Pop() any {
 	old := *h
 	n := len(old)
 	x := old[n-1]
@@ -55,7 +55,7 @@ func (h *MinHeap) Pop() any {
 	return x
 }
 
-func (h MinHeap) IndexOf(element string) int {
+func (h minHeap) IndexOf(element string) int {
 	for i := range h {
 		if h[i].value == element {
 			return i
@@ -75,7 +75,7 @@ type TopK struct {
 	errorRate float64
 	accuracy  float64
 	sketch    *CountMinSketch
-	heap      MinHeap
+	heap      minHeap
 }
 
 // TopKElement is the struct used to return the results of the TopK
@@ -90,7 +90,7 @@ type TopKElement struct {
 // _accuracy_ is the delta in the error rate
 func NewTopK(k uint, errorRate, accuracy float64) *TopK {
 	sketch, _ := NewCountMinSketchFromEstimates(errorRate, accuracy)
-	heap := &MinHeap{}
+	heap := &minHeap{}
 	return &TopK{k, errorRate, accuracy, sketch, *heap}
 }
 
@@ -110,7 +110,7 @@ func (t *TopK) Insert(data []byte, count uint64) {
 		if index > -1 {
 			heap.Remove(&t.heap, index)
 		}
-		heap.Push(&t.heap, HeapElement{element, frequency})
+		heap.Push(&t.heap, heapElement{element, frequency})
 		if uint(len(t.heap)) > t.k {
 			heap.Pop(&t.heap)
 		}
@@ -178,9 +178,9 @@ func (t *TopK) Import(data []byte) error {
 	t.k = topk.K
 	t.accuracy = topk.Accuracy
 	t.errorRate = topk.ErrorRate
-	var heap MinHeap
+	var heap minHeap
 	for i := range topk.Heap {
-		heap = append(heap, HeapElement{value: topk.Heap[i].Value, frequency: topk.Heap[i].Frequency})
+		heap = append(heap, heapElement{value: topk.Heap[i].Value, frequency: topk.Heap[i].Frequency})
 	}
 	t.heap = heap
 	sketch, err := NewCountMinSketch(topk.Sketch.Rows, topk.Sketch.Columns)
@@ -279,7 +279,7 @@ func (t *TopK) ReadFrom(stream io.Reader) (int64, error) {
 		return 0, err
 	}
 	numBytesHeap := int64(0)
-	heap := &MinHeap{}
+	heap := &minHeap{}
 	for i := uint64(0); i < k; i++ {
 		var strLen, frequency uint64
 		err := binary.Read(stream, binary.BigEndian, &strLen)
@@ -295,7 +295,7 @@ func (t *TopK) ReadFrom(stream io.Reader) (int64, error) {
 		if err != nil {
 			return 0, err
 		}
-		*heap = append(*heap, HeapElement{value: string(b), frequency: frequency})
+		*heap = append(*heap, heapElement{value: string(b), frequency: frequency})
 	}
 	t.k = uint(k)
 	t.accuracy = accuracy
