@@ -23,28 +23,30 @@ A Bloom filter is a space-efficient probabilistic data structure that is used to
 package main
 
 import (
-    "fmt"
+	"fmt"
 
-    "github.com/kwertop/filters"
+	"github.com/kwertop/gostatix"
 )
 
 func main() {
 
-    // create a new in-memory bloom filter with 1000000 items and a false positive rate of 0.0001
-    filter := filters.NewMemBloomFilterWithParameters(1000000, 0.0001)
+	// create a new in-memory bloom filter with 1000000 items and a false positive rate of 0.0001
+	filter, _ := gostatix.NewMemBloomFilterWithParameters(1000000, 0.001)
 
-    
-    filter.Insert([]byte("cat")).Insert([]byte("dog"))
+	e1 := []byte("cat")
+	e2 := []byte("dog")
 
-    // isCatPresent is boolean value set to true
-    // since "cat" is present in the filter
-    isCatPresent := filter.Lookup([]byte("cat"))
+	// insert a few elements - "cat" and "dog"
+	filter.Insert(e1).Insert(e2)
 
-    // isMicePresent is boolean value set to false
-    // since "mice" is not present in the filter
-    isMicePresent := filter.Lookup([]byte("mice"))
+	// do a lookup for an element
+	ok := filter.Lookup(e1)
+	fmt.Printf("found cat, %v\n", ok) // found cat, true
 
+	ok = filter.Lookup([]byte("elephant"))
+	fmt.Printf("found elephant, %v\n", ok) // found elephant, false
 }
+
 ```
 
 ### Redis
@@ -53,26 +55,34 @@ func main() {
 package main
 
 import (
-    "fmt"
+	"fmt"
 
-    "github.com/kwertop/filters"
+	"github.com/kwertop/gostatix"
 )
 
 func main() {
-
-    // create a new redis-backed bloom filter with 1000000 items and a false positive rate of 0.0001
-    filter := filters.NewRedisBloomFilterWithParameters(1000000, 0.0001)
-
     
-    filter.Insert([]byte("cat")).Insert([]byte("dog"))
+    // parse redis uri
+	redisConnOpt, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
 
-    // isCatPresent is boolean value set to true
-    // since "cat" is present in the filter
-    isCatPresent := filter.Lookup([]byte("cat"))
+    // create redis connection
+	gostatix.MakeRedisClient(*redisConnOpt)
 
-    // isMicePresent is boolean value set to false
-    // since "mice" is not present in the filter
-    isMicePresent := filter.Lookup([]byte("mice"))
+    // create a new redis bloom filter with 1000000 items and a false positive rate of 0.0001
+	bloomRedis, _ := gostatix.NewRedisBloomFilterWithParameters(1000000, 0.001)
 
+    e1 := []byte("cat")
+	e2 := []byte("dog")
+
+    // insert a few elements - "cat" and "dog"
+	bloomRedis.Insert(e1).Insert(e2)
+
+    // do a lookup for an element
+	ok := bloomRedis.Lookup(e1)
+	fmt.Printf("found cat, %v\n", ok) // found cat, true
+
+	ok = filter.Lookup([]byte("elephant"))
+	fmt.Printf("found elephant, %v\n", ok) // found elephant, false
 }
+
 ```
