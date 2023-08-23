@@ -26,7 +26,7 @@ type RedisConnOptions struct {
 	TLSConfig         *tls.Config
 }
 
-func GetRedisClient() *redis.Client {
+func getRedisClient() *redis.Client {
 	return redisClient
 }
 
