@@ -20,7 +20,7 @@ func TestCuckooRedisBasic(t *testing.T) {
 	}
 	bucketsLength := 0
 	for b := range filter.buckets {
-		bucketsLength += int(filter.buckets[b].Length())
+		bucketsLength += int(filter.buckets[b].getLength())
 	}
 	if bucketsLength != 2 {
 		t.Errorf("total elements insisde buckets should be 2, instead found %v", bucketsLength)
@@ -38,7 +38,7 @@ func TestCuckooRedisAddDifferentBuckets(t *testing.T) {
 	_, fIndex, sIndex, _ := filter.getPositions(e)
 	firstIndex := filter.getIndexKey(fIndex)
 	secondIndex := filter.getIndexKey(sIndex)
-	if filter.buckets[firstIndex].IsFree() || filter.buckets[secondIndex].IsFree() {
+	if filter.buckets[firstIndex].isFree() || filter.buckets[secondIndex].isFree() {
 		t.Error("both buckets should be full")
 	}
 	filterLength := filter.Length()
@@ -47,7 +47,7 @@ func TestCuckooRedisAddDifferentBuckets(t *testing.T) {
 	}
 	bucketsLength := 0
 	for b := range filter.buckets {
-		bucketsLength += int(filter.buckets[b].Length())
+		bucketsLength += int(filter.buckets[b].getLength())
 	}
 	if bucketsLength != 4 {
 		t.Errorf("total elements insisde buckets should be 4, instead found %v", bucketsLength)
@@ -61,8 +61,8 @@ func TestCuckooRedisRetries(t *testing.T) {
 	fingerPrint, fIndex, sIndex, _ := filter.getPositions(e)
 	firstIndex := filter.getIndexKey(fIndex)
 	secondIndex := filter.getIndexKey(sIndex)
-	filter.buckets[firstIndex].Add("bar")
-	filter.buckets[secondIndex].Add("baz")
+	filter.buckets[firstIndex].add("bar")
+	filter.buckets[secondIndex].add("baz")
 	filter.incrLength()
 	filter.incrLength()
 	ok := filter.Insert(e, false)
@@ -72,13 +72,13 @@ func TestCuckooRedisRetries(t *testing.T) {
 	bucketsLength := 0
 	for b := range filter.buckets {
 		bucket := filter.buckets[b]
-		if bucket.Length() > 0 {
-			elem, _ := bucket.At(0)
+		if bucket.getLength() > 0 {
+			elem, _ := bucket.at(0)
 			if elem != "bar" && elem != "baz" && elem != fingerPrint {
 				t.Errorf("elem shuold be either \"bar\", \"baz\" or \"%s\", instead found %v", fingerPrint, elem)
 			}
 		}
-		bucketsLength += int(bucket.Length())
+		bucketsLength += int(bucket.getLength())
 	}
 	filterLength := filter.Length()
 	if filterLength != 3 {

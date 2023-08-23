@@ -114,10 +114,10 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
 	sIndex := cuckooFilter.getIndexKey(secondBucketIndex)
-	if cuckooFilter.buckets[fIndex].IsFree() {
-		cuckooFilter.buckets[fIndex].Add(fingerPrint)
-	} else if cuckooFilter.buckets[sIndex].IsFree() {
-		cuckooFilter.buckets[sIndex].Add(fingerPrint)
+	if cuckooFilter.buckets[fIndex].isFree() {
+		cuckooFilter.buckets[fIndex].add(fingerPrint)
+	} else if cuckooFilter.buckets[sIndex].isFree() {
+		cuckooFilter.buckets[sIndex].add(fingerPrint)
 	} else {
 		var index uint64
 		if rand.Float32() < 0.5 {
@@ -129,15 +129,15 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 		currFingerPrint := fingerPrint
 		var items []entry
 		for i := uint64(0); i < cuckooFilter.retries; i++ {
-			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.buckets[indexKey].Length()-1)))
-			prevFingerPrint, _ := cuckooFilter.buckets[indexKey].At(randIndex)
+			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.buckets[indexKey].getLength()-1)))
+			prevFingerPrint, _ := cuckooFilter.buckets[indexKey].at(randIndex)
 			items = append(items, entry{prevFingerPrint, index, randIndex})
-			cuckooFilter.buckets[indexKey].Set(randIndex, currFingerPrint)
+			cuckooFilter.buckets[indexKey].set(randIndex, currFingerPrint)
 			hash := getHash([]byte(prevFingerPrint))
 			newIndex := (index ^ hash) % uint64(len(cuckooFilter.buckets))
 			newIndexKey := "cuckoo_" + cuckooFilter.key + "_bucket_" + strconv.FormatUint(newIndex, 10)
-			if cuckooFilter.buckets[newIndexKey].IsFree() {
-				cuckooFilter.buckets[newIndexKey].Add(prevFingerPrint)
+			if cuckooFilter.buckets[newIndexKey].isFree() {
+				cuckooFilter.buckets[newIndexKey].add(prevFingerPrint)
 				cuckooFilter.incrLength()
 				return true
 			}
@@ -146,7 +146,7 @@ func (cuckooFilter *CuckooFilterRedis) Insert(data []byte, destructive bool) boo
 			for i := len(items) - 1; i >= 0; i-- {
 				item := items[i]
 				firstIndexKey := "cuckoo_" + cuckooFilter.key + "_bucket_" + strconv.FormatUint(item.firstIndex, 10)
-				cuckooFilter.buckets[firstIndexKey].Set(item.secondIndex, item.fingerPrint)
+				cuckooFilter.buckets[firstIndexKey].set(item.secondIndex, item.fingerPrint)
 			}
 		}
 		panic("cannot insert element, cuckoofilter is full")
@@ -160,14 +160,14 @@ func (cuckooFilter *CuckooFilterRedis) Lookup(data []byte) (bool, error) {
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
 	sIndex := cuckooFilter.getIndexKey(secondBucketIndex)
-	isAtFirstIndex, err := cuckooFilter.buckets[fIndex].Lookup(fingerPrint)
+	isAtFirstIndex, err := cuckooFilter.buckets[fIndex].lookup(fingerPrint)
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while lookup of data: %v", err)
 	}
 	if isAtFirstIndex {
 		return isAtFirstIndex, nil
 	}
-	isAtSecondIndex, err := cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
+	isAtSecondIndex, err := cuckooFilter.buckets[sIndex].lookup(fingerPrint)
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while lookup of data: %v", err)
 	}
@@ -179,21 +179,21 @@ func (cuckooFilter *CuckooFilterRedis) Remove(data []byte) (bool, error) {
 	fingerPrint, firstBucketIndex, secondBucketIndex, _ := cuckooFilter.getPositions(data)
 	fIndex := cuckooFilter.getIndexKey(firstBucketIndex)
 	sIndex := cuckooFilter.getIndexKey(secondBucketIndex)
-	isPresent, err := cuckooFilter.buckets[fIndex].Lookup(fingerPrint)
+	isPresent, err := cuckooFilter.buckets[fIndex].lookup(fingerPrint)
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while removing the data, error: %v", err)
 	}
 	if isPresent {
-		cuckooFilter.buckets[fIndex].Remove(fingerPrint)
+		cuckooFilter.buckets[fIndex].remove(fingerPrint)
 		cuckooFilter.decrLength()
 		return true, nil
 	}
-	isPresent, err = cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
+	isPresent, err = cuckooFilter.buckets[sIndex].lookup(fingerPrint)
 	if err != nil {
 		return false, fmt.Errorf("gostatix: error while removing the data, error: %v", err)
 	}
 	if isPresent {
-		cuckooFilter.buckets[sIndex].Remove(fingerPrint)
+		cuckooFilter.buckets[sIndex].remove(fingerPrint)
 		cuckooFilter.decrLength()
 		return true, nil
 	}
@@ -226,8 +226,8 @@ func (filter *CuckooFilterRedis) Export() ([]byte, error) {
 	for i := uint64(0); i < filter.size; i++ {
 		bucketKey := filter.getIndexKey(i)
 		bucket := filter.buckets[bucketKey]
-		elements, _ := bucket.Elements()
-		bucketJSON := bucketRedisJSON{bucket.Size(), bucket.Length(), elements, bucketKey}
+		elements, _ := bucket.getElements()
+		bucketJSON := bucketRedisJSON{bucket.Size(), bucket.getLength(), elements, bucketKey}
 		bucketsJSON[i] = bucketJSON
 	}
 	return json.Marshal(cuckooFilterRedisJSON{
@@ -266,9 +266,9 @@ func (filter *CuckooFilterRedis) Import(data []byte, withNewRedisKey bool) error
 	for i := range f.Buckets {
 		bucketJSON := f.Buckets[i]
 		bucketKey := filter.getIndexKey(uint64(i))
-		bucket := NewBucketRedis(bucketKey, f.BucketSize)
+		bucket := newBucketRedis(bucketKey, f.BucketSize)
 		for j := range bucketJSON.Elements {
-			bucket.Add(bucketJSON.Elements[j])
+			bucket.add(bucketJSON.Elements[j])
 		}
 		filters[bucketKey] = bucket
 	}
@@ -281,7 +281,7 @@ func (aFilter CuckooFilterRedis) Equals(bFilter CuckooFilterRedis) (bool, error)
 	result := true
 	for result && count < len(aFilter.buckets) {
 		bucket := aFilter.buckets[aFilter.getIndexKey(uint64(count))]
-		ok, err := bFilter.buckets[bFilter.getIndexKey(uint64(count))].Equals(bucket)
+		ok, err := bFilter.buckets[bFilter.getIndexKey(uint64(count))].equals(bucket)
 		if err != nil {
 			return false, err
 		}
@@ -340,7 +340,7 @@ func (filter *CuckooFilterRedis) initBuckets() error {
 	}
 	for i := range bucketKeys {
 		bucketKey := bucketKeys[i]
-		filter.buckets[bucketKey] = NewBucketRedis(bucketKey, filter.bucketSize)
+		filter.buckets[bucketKey] = newBucketRedis(bucketKey, filter.bucketSize)
 	}
 	return nil
 }
@@ -353,7 +353,7 @@ func (filter *CuckooFilterRedis) localInitBuckets() {
 	}
 	for i := range bucketKeys {
 		bucketKey := bucketKeys[i]
-		filter.buckets[bucketKey] = NewBucketRedis(bucketKey, filter.bucketSize)
+		filter.buckets[bucketKey] = newBucketRedis(bucketKey, filter.bucketSize)
 	}
 }
 
