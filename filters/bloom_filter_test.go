@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/kwertop/gostatix"
-	"github.com/kwertop/gostatix/bitset"
+	"github.com/kwertop/gostatix/internal/bitset"
 )
 
 func TestFilterSizeError(t *testing.T) {

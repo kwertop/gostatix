@@ -17,7 +17,7 @@ import (
 
 	"github.com/dgryski/go-metro"
 	"github.com/kwertop/gostatix"
-	"github.com/kwertop/gostatix/bitset"
+	"github.com/kwertop/gostatix/internal/bitset"
 )
 
 // The BloomFilter data structure. It mainly has two fields: _size_ and _numHashes_

@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/kwertop/gostatix"
-	"github.com/kwertop/gostatix/buckets"
+	"github.com/kwertop/gostatix/internal/buckets"
 	"github.com/redis/go-redis/v9"
 )
 

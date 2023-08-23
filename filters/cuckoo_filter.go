@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/kwertop/gostatix"
-	"github.com/kwertop/gostatix/buckets"
+	"github.com/kwertop/gostatix/internal/buckets"
 )
 
 // CuckooFilter is the in-memory implementation of BaseCuckooFilter
