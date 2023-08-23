@@ -61,28 +61,28 @@ import (
 )
 
 func main() {
-    
+
     // parse redis uri
-	redisConnOpt, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+    redisConnOpt, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
 
     // create redis connection
-	gostatix.MakeRedisClient(*redisConnOpt)
+    gostatix.MakeRedisClient(*redisConnOpt)
 
     // create a new redis bloom filter with 1000000 items and a false positive rate of 0.0001
-	bloomRedis, _ := gostatix.NewRedisBloomFilterWithParameters(1000000, 0.001)
+    bloomRedis, _ := gostatix.NewRedisBloomFilterWithParameters(1000000, 0.001)
 
     e1 := []byte("cat")
 	e2 := []byte("dog")
 
     // insert a few elements - "cat" and "dog"
-	bloomRedis.Insert(e1).Insert(e2)
+    bloomRedis.Insert(e1).Insert(e2)
 
     // do a lookup for an element
-	ok := bloomRedis.Lookup(e1)
-	fmt.Printf("found cat, %v\n", ok) // found cat, true
+    ok := bloomRedis.Lookup(e1)
+    fmt.Printf("found cat, %v\n", ok) // found cat, true
 
-	ok = filter.Lookup([]byte("elephant"))
-	fmt.Printf("found elephant, %v\n", ok) // found elephant, false
+    ok = filter.Lookup([]byte("elephant"))
+    fmt.Printf("found elephant, %v\n", ok) // found elephant, false
 }
 
 ```
