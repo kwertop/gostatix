@@ -9,7 +9,7 @@ import (
 )
 
 func TestFilterSizeError(t *testing.T) {
-	bitset := NewBitSetMem(1000)
+	bitset := newBitSetMem(1000)
 	_, err := NewBloomFilterWithBitSet(100, 4, bitset, "")
 	if err == nil {
 		t.Error("should error out as size doesn't match")
@@ -42,7 +42,7 @@ func testFilterWithBitset(filter *BloomFilter, t *testing.T) {
 }
 
 func TestFilterWithBitSetMem(t *testing.T) {
-	bitset := NewBitSetMem(1000)
+	bitset := newBitSetMem(1000)
 	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
 	testFilterWithBitset(filter, t)
 }
@@ -55,7 +55,7 @@ func TestFilterWithBitSetRedis(t *testing.T) {
 }
 
 func TestFilterZeroSizes(t *testing.T) {
-	bitset := NewBitSetMem(0)
+	bitset := newBitSetMem(0)
 	filter, _ := NewBloomFilterWithBitSet(0, 0, bitset, "")
 	if filter.GetCap() != 1 {
 		t.Errorf("size: %v should be 1", filter.GetCap())
@@ -66,7 +66,7 @@ func TestFilterZeroSizes(t *testing.T) {
 }
 
 func TestInt32(t *testing.T) {
-	bitset := NewBitSetMem(1000)
+	bitset := newBitSetMem(1000)
 	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
 	e1 := make([]byte, 4)
 	e2 := make([]byte, 4)
@@ -118,7 +118,7 @@ func testStringInFilter(filter *BloomFilter, t *testing.T) {
 }
 
 func TestStringInMemFilter(t *testing.T) {
-	bitset := NewBitSetMem(1000)
+	bitset := newBitSetMem(1000)
 	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
 	testStringInFilter(filter, t)
 }
@@ -180,7 +180,7 @@ func TestPositiveRate100000_01(t *testing.T) {
 }
 
 func TestGetSize(t *testing.T) {
-	bitset := NewBitSetMem(1000)
+	bitset := newBitSetMem(1000)
 	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
 	if filter.GetCap() != filter.size {
 		t.Errorf("getcap method return value %v doesn't match with filter size %v", filter.GetCap(), filter.size)
@@ -188,7 +188,7 @@ func TestGetSize(t *testing.T) {
 }
 
 func TestGetNumHashes(t *testing.T) {
-	bitset := NewBitSetMem(1000)
+	bitset := newBitSetMem(1000)
 	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
 	if filter.GetNumHashes() != filter.numHashes {
 		t.Errorf("getnumhashes method return value %v doesn't match with filter numHashes %v", filter.GetNumHashes(), filter.numHashes)
@@ -196,9 +196,9 @@ func TestGetNumHashes(t *testing.T) {
 }
 
 func TestNotEqualsSize(t *testing.T) {
-	aBitset := NewBitSetMem(1000)
+	aBitset := newBitSetMem(1000)
 	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset, "")
-	bBitset := NewBitSetMem(100)
+	bBitset := newBitSetMem(100)
 	bFilter, _ := NewBloomFilterWithBitSet(100, 4, bBitset, "")
 	if ok, _ := aFilter.Equals(bFilter); ok {
 		t.Errorf("aFilter and bFilter shouldn't be equal")
@@ -206,9 +206,9 @@ func TestNotEqualsSize(t *testing.T) {
 }
 
 func TestNotEqualsNumHashes(t *testing.T) {
-	aBitset := NewBitSetMem(1000)
+	aBitset := newBitSetMem(1000)
 	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset, "")
-	bBitset := NewBitSetMem(100)
+	bBitset := newBitSetMem(100)
 	bFilter, _ := NewBloomFilterWithBitSet(100, 6, bBitset, "")
 	if ok, _ := aFilter.Equals(bFilter); ok {
 		t.Errorf("aFilter and bFilter shouldn't be equal")
@@ -217,14 +217,14 @@ func TestNotEqualsNumHashes(t *testing.T) {
 
 func TestEquals(t *testing.T) {
 	size, numHashes := 1000, 4
-	aBitset := NewBitSetMem(uint(size))
+	aBitset := newBitSetMem(uint(size))
 	aFilter, _ := NewBloomFilterWithBitSet(uint(size), uint(numHashes), aBitset, "")
 	e := make([]byte, 4)
 	for i := uint32(0); i < uint32(size); i++ {
 		binary.BigEndian.PutUint32(e, i)
 		aFilter.Insert(e)
 	}
-	bBitset := NewBitSetMem(uint(size))
+	bBitset := newBitSetMem(uint(size))
 	bFilter, _ := NewBloomFilterWithBitSet(uint(size), uint(numHashes), bBitset, "")
 	for i := uint32(0); i < uint32(size); i++ {
 		binary.BigEndian.PutUint32(e, i)
@@ -236,7 +236,7 @@ func TestEquals(t *testing.T) {
 }
 
 func TestExportImport(t *testing.T) {
-	aBitset := NewBitSetMem(1000)
+	aBitset := newBitSetMem(1000)
 	afilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset, "")
 	e1 := "This"
 	e2 := "is"
@@ -248,7 +248,7 @@ func TestExportImport(t *testing.T) {
 	afilter.InsertString(e4)
 	afilter.InsertString(e5)
 	exportedFilter, _ := afilter.Export()
-	bBitset := NewBitSetMem(1000)
+	bBitset := newBitSetMem(1000)
 	bFilter, _ := NewBloomFilterWithBitSet(1000, 4, bBitset, "")
 	bFilter.Import(exportedFilter)
 	ok1 := bFilter.LookupString(e1)
@@ -280,7 +280,7 @@ func TestImportInvalidJSON(t *testing.T) {
 }
 
 func TestBloomMemBinaryReadWrite(t *testing.T) {
-	aBitset := NewBitSetMem(1000)
+	aBitset := newBitSetMem(1000)
 	aFilter, _ := NewBloomFilterWithBitSet(1000, 4, aBitset, "")
 	e1 := "This"
 	e2 := "is"

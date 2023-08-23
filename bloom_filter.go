@@ -85,7 +85,7 @@ func NewRedisBloomFilterWithParameters(numItems uint, errorRate float64) (*Bloom
 func NewMemBloomFilterWithParameters(numItems uint, errorRate float64) (*BloomFilter, error) {
 	size := util.CalculateFilterSize(numItems, errorRate)
 	numHashes := util.CalculateNumHashes(size, numItems)
-	filter := NewBitSetMem(size)
+	filter := newBitSetMem(size)
 	return NewBloomFilterWithBitSet(util.Max(size, 1), util.Max(numHashes, 1), filter, "")
 }
 
@@ -116,7 +116,7 @@ func NewRedisBloomFilterFromBitSet(data []uint64, numHashes uint) (*BloomFilter,
 // _numHashes_ parameter is needed for the number of hashing functions
 func NewMemBloomFilterFromBitSet(data []uint64, numHashes uint) *BloomFilter {
 	size := uint(len(data) * 64)
-	return &BloomFilter{size: util.Max(size, 1), numHashes: util.Max(numHashes, 1), filter: FromDataMem(data)}
+	return &BloomFilter{size: util.Max(size, 1), numHashes: util.Max(numHashes, 1), filter: fromDataMem(data)}
 }
 
 // NewRedisBloomFilterFromKey is used to create a new Redis backed BloomFilter from the

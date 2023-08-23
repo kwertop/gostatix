@@ -22,13 +22,13 @@ type BitSetMem struct {
 }
 
 // NewBitSetMem creates a new BitSetMem of size _size_
-func NewBitSetMem(size uint) *BitSetMem {
+func newBitSetMem(size uint) *BitSetMem {
 	return &BitSetMem{bitset.New(size), size}
 }
 
 // FromDataMem creates an instance of BitSetMem after
 // inserting the data passed in the bitset
-func FromDataMem(data []uint64) *BitSetMem {
+func fromDataMem(data []uint64) *BitSetMem {
 	return &BitSetMem{bitset.From(data), uint(len(data) * 64)}
 }
 

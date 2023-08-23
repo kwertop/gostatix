@@ -153,7 +153,7 @@ func TestBitSetRedisNotEqual(t *testing.T) {
 	connOptions, _ := ParseRedisURI(redisUri)
 	MakeRedisClient(*connOptions)
 	aBitset := NewBitSetRedis(1)
-	bBitset := NewBitSetMem(1)
+	bBitset := newBitSetMem(1)
 	if ok, _ := aBitset.Equals(bBitset); ok {
 		t.Fatal("aBitset and bBitset shouldn't be equal")
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestBitSetMemHas(t *testing.T) {
-	bitset := NewBitSetMem(4)
+	bitset := newBitSetMem(4)
 	bitset.Insert(2)
 	bitset.Insert(3)
 	bitset.Insert(7)
@@ -22,7 +22,7 @@ func TestBitSetMemHas(t *testing.T) {
 }
 
 func TestBitSetMemFromData(t *testing.T) {
-	bitset := FromDataMem([]uint64{3, 10})
+	bitset := fromDataMem([]uint64{3, 10})
 	if ok, _ := bitset.Has(0); !ok {
 		t.Fatalf("should be true at index 0, got %v", ok)
 	}
@@ -47,7 +47,7 @@ func TestBitSetMemFromData(t *testing.T) {
 }
 
 func TestBitSetMemSetBits(t *testing.T) {
-	bitset := FromDataMem([]uint64{3, 10})
+	bitset := fromDataMem([]uint64{3, 10})
 	setBits, _ := bitset.BitCount()
 	if setBits != 4 {
 		t.Fatalf("count of set bits should be 4, got %v", setBits)
@@ -55,7 +55,7 @@ func TestBitSetMemSetBits(t *testing.T) {
 }
 
 func TestBitSetMemExport(t *testing.T) {
-	bitset := NewBitSetMem(6)
+	bitset := newBitSetMem(6)
 	bitset.Insert(1)
 	bitset.Insert(5)
 	bitset.Insert(8)
@@ -70,7 +70,7 @@ func TestBitSetMemExport(t *testing.T) {
 }
 
 func TestBitSetMemImport(t *testing.T) {
-	bitset := NewBitSetMem(6)
+	bitset := newBitSetMem(6)
 	str := "\"AAAAAAAAAAYAAAAAAAABIg==\""
 	bitset.Import([]byte(str))
 	if ok, _ := bitset.Has(0); ok {
@@ -92,7 +92,7 @@ func TestBitSetMemNotEqual(t *testing.T) {
 	redisUri := "redis://" + mr.Addr()
 	connOptions, _ := ParseRedisURI(redisUri)
 	MakeRedisClient(*connOptions)
-	aBitset := NewBitSetMem(0)
+	aBitset := newBitSetMem(0)
 	bBitset := NewBitSetRedis(0)
 	if ok, _ := aBitset.Equals(bBitset); ok {
 		t.Fatal("aBitset and bBitset shouldn't be equal")
@@ -100,10 +100,10 @@ func TestBitSetMemNotEqual(t *testing.T) {
 }
 
 func TestBitSetMemEqual(t *testing.T) {
-	aBitset := NewBitSetMem(3)
+	aBitset := newBitSetMem(3)
 	aBitset.Insert(0)
 	aBitset.Insert(1)
-	bBitset := NewBitSetMem(3)
+	bBitset := newBitSetMem(3)
 	bBitset.Insert(0)
 	bBitset.Insert(1)
 	ok, err := aBitset.Equals(bBitset)
@@ -116,7 +116,7 @@ func TestBitSetMemEqual(t *testing.T) {
 }
 
 func TestBitSetMemBinaryReadWrite(t *testing.T) {
-	aBitset := NewBitSetMem(6)
+	aBitset := newBitSetMem(6)
 	aBitset.Insert(1)
 	aBitset.Insert(5)
 	aBitset.Insert(8)
