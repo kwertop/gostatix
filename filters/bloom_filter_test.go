@@ -53,7 +53,7 @@ func TestFilterWithBitSetMem(t *testing.T) {
 func TestFilterWithBitSetRedis(t *testing.T) {
 	initMockRedis()
 	bitset := bitset.NewBitSetRedis(1000)
-	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
+	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "foo")
 	testFilterWithBitset(filter, t)
 }
 
@@ -129,7 +129,7 @@ func TestStringInMemFilter(t *testing.T) {
 func TestStringInRedisFilter(t *testing.T) {
 	initMockRedis()
 	bitset := bitset.NewBitSetRedis(1000)
-	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "")
+	filter, _ := NewBloomFilterWithBitSet(1000, 4, bitset, "bar")
 	testStringInFilter(filter, t)
 }
 

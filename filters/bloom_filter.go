@@ -142,8 +142,10 @@ func NewRedisBloomFilterFromKey(metadataKey string) (*BloomFilter, error) {
 
 // Insert writes new _data_ in the bloom filter
 func (bloomFilter *BloomFilter) Insert(data []byte) *BloomFilter {
-	bloomFilter.lock.Lock()
-	defer bloomFilter.lock.Unlock()
+	if bitset.IsBitSetMem(bloomFilter.filter) {
+		bloomFilter.lock.Lock()
+		defer bloomFilter.lock.Unlock()
+	}
 
 	hashes := getHashes(data)
 	if bitset.IsBitSetMem(bloomFilter.filter) {
@@ -186,8 +188,10 @@ func (bloomFilter *BloomFilter) GetMetadataKey() string {
 // Lookup returns true if the corresponding bits in the bitset for _data_ is set,
 // otherwise false
 func (bloomFilter *BloomFilter) Lookup(data []byte) bool {
-	bloomFilter.lock.Lock()
-	defer bloomFilter.lock.Unlock()
+	if bitset.IsBitSetMem(bloomFilter.filter) {
+		bloomFilter.lock.Lock()
+		defer bloomFilter.lock.Unlock()
+	}
 
 	hashes := getHashes(data)
 	// if bitset.IsBitSetMem(bloomFilter.filter) {
