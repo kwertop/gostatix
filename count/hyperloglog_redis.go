@@ -40,8 +40,8 @@ func NewHyperLogLogRedis(numRegisters uint64) (*HyperLogLogRedis, error) {
 	if err != nil {
 		return nil, err
 	}
-	key := gostatix.GenerateRandomString(16)
-	metadataKey := gostatix.GenerateRandomString(16)
+	key := generateRandomString(16)
+	metadataKey := generateRandomString(16)
 	h := &HyperLogLogRedis{*abstractLog, key, metadataKey}
 	metadata := make(map[string]interface{})
 	metadata["numRegisters"] = h.numRegisters
@@ -143,7 +143,7 @@ func (h *HyperLogLogRedis) Import(data []byte, withNewKey bool) error {
 	h.numBytesPerHash = g.NumBytesPerHash
 	h.correctionBias = g.CorrectionBias
 	if withNewKey {
-		h.key = gostatix.GenerateRandomString(16)
+		h.key = generateRandomString(16)
 	} else {
 		h.key = g.Key
 	}

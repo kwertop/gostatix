@@ -13,7 +13,6 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/kwertop/gostatix"
 	"github.com/kwertop/gostatix/buckets"
 )
 
@@ -59,7 +58,7 @@ func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uin
 // _errorRate_ is the desired false positive rate of the filter. fingerPrintLength is calculated
 // according to this error rate.
 func NewCuckooFilterWithErrorRate(size, bucketSize, retries uint64, errorRate float64) *CuckooFilter {
-	fingerPrintLength := gostatix.CalculateFingerPrintLength(size, errorRate)
+	fingerPrintLength := calculateFingerPrintLength(size, errorRate)
 	capacity := uint64(math.Ceil(float64(size) * 0.955 / float64(bucketSize)))
 	return NewCuckooFilterWithRetries(capacity, bucketSize, fingerPrintLength, retries)
 }

@@ -36,7 +36,7 @@ func NewBitSetRedis(size uint) *BitSetRedis {
 	for i := range bytes {
 		bytes[i] = 0x00
 	}
-	key := gostatix.GenerateRandomString(16)
+	key := generateRandomString(16)
 	_ = gostatix.GetRedisClient().Set(context.Background(), key, string(bytes), 0).Err()
 	return &BitSetRedis{size, key}
 }
@@ -181,9 +181,9 @@ func (bitSet BitSetRedis) Export() (uint, []byte, error) {
 	}
 	bytes := []byte(val)
 	for i := range bytes {
-		bytes[i] = gostatix.ConvertByteToLittleEndianByte(bytes[i])
+		bytes[i] = convertByteToLittleEndianByte(bytes[i])
 	}
-	gostatix.ReverseBytes(bytes)
+	reverseBytes(bytes)
 	buf := make([]byte, wordBytes)
 	binary.BigEndian.PutUint64(buf, uint64(bitSet.size))
 	bytes = append(buf, bytes...)
@@ -206,9 +206,9 @@ func (bitSet *BitSetRedis) Import(data []byte) (bool, error) {
 	bytes = bytes[8:]
 	size := binary.BigEndian.Uint64(lenBytes)
 	bitSet.size = uint(size)
-	gostatix.ReverseBytes(bytes)
+	reverseBytes(bytes)
 	for i := range bytes {
-		bytes[i] = gostatix.ConvertByteToLittleEndianByte(bytes[i])
+		bytes[i] = convertByteToLittleEndianByte(bytes[i])
 	}
 	err = gostatix.GetRedisClient().Set(context.Background(), bitSet.key, string(bytes), 0).Err()
 	if err != nil {
@@ -226,7 +226,7 @@ func uint64ArrayToByteArray(data []uint64) ([]byte, error) {
 		valueBytes := make([]byte, 8)
 		binary.LittleEndian.PutUint64(valueBytes, value)
 		for _, val := range valueBytes {
-			if err := binary.Write(buf, binary.LittleEndian, gostatix.ConvertByteToLittleEndianByte(val)); err != nil {
+			if err := binary.Write(buf, binary.LittleEndian, convertByteToLittleEndianByte(val)); err != nil {
 				return nil, err
 			}
 		}
