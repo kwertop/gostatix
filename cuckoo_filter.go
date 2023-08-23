@@ -44,7 +44,7 @@ func NewCuckooFilter(size, bucketSize, fingerPrintLength uint64) *CuckooFilter {
 func NewCuckooFilterWithRetries(size, bucketSize, fingerPrintLength, retries uint64) *CuckooFilter {
 	filter := make([]BucketMem, size)
 	for i := range filter {
-		filter[i] = *NewBucketMem(bucketSize)
+		filter[i] = *newBucketMem(bucketSize)
 	}
 	baseFilter := makeAbstractCuckooFilter(size, bucketSize, fingerPrintLength, retries)
 	return &CuckooFilter{buckets: filter, AbstractCuckooFilter: baseFilter}
@@ -77,10 +77,10 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 	defer cuckooFilter.lock.Unlock()
 
 	fingerPrint, fIndex, sIndex, _ := cuckooFilter.getPositions(data)
-	if cuckooFilter.buckets[fIndex].IsFree() {
-		cuckooFilter.buckets[fIndex].Add(fingerPrint)
-	} else if cuckooFilter.buckets[sIndex].IsFree() {
-		cuckooFilter.buckets[sIndex].Add(fingerPrint)
+	if cuckooFilter.buckets[fIndex].isFree() {
+		cuckooFilter.buckets[fIndex].add(fingerPrint)
+	} else if cuckooFilter.buckets[sIndex].isFree() {
+		cuckooFilter.buckets[sIndex].add(fingerPrint)
 	} else {
 		var index uint64
 		if rand.Float32() < 0.5 {
@@ -91,14 +91,14 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 		currFingerPrint := fingerPrint
 		var items []entry
 		for i := uint64(0); i < cuckooFilter.retries; i++ {
-			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.buckets[index].Length()-1)))
-			prevFingerPrint := cuckooFilter.buckets[index].At(randIndex)
+			randIndex := uint64(math.Ceil(rand.Float64() * float64(cuckooFilter.buckets[index].getLength()-1)))
+			prevFingerPrint := cuckooFilter.buckets[index].at(randIndex)
 			items = append(items, entry{prevFingerPrint, index, randIndex})
-			cuckooFilter.buckets[index].Set(randIndex, currFingerPrint)
+			cuckooFilter.buckets[index].set(randIndex, currFingerPrint)
 			hash := getHash([]byte(prevFingerPrint))
 			newIndex := (index ^ hash) % uint64(len(cuckooFilter.buckets))
-			if cuckooFilter.buckets[newIndex].IsFree() {
-				cuckooFilter.buckets[newIndex].Add(prevFingerPrint)
+			if cuckooFilter.buckets[newIndex].isFree() {
+				cuckooFilter.buckets[newIndex].add(prevFingerPrint)
 				cuckooFilter.length++
 				return true
 			}
@@ -106,7 +106,7 @@ func (cuckooFilter *CuckooFilter) Insert(data []byte, destructive bool) bool {
 		if !destructive {
 			for i := len(items) - 1; i >= 0; i-- {
 				item := items[i]
-				cuckooFilter.buckets[item.firstIndex].Set(item.secondIndex, item.fingerPrint)
+				cuckooFilter.buckets[item.firstIndex].set(item.secondIndex, item.fingerPrint)
 			}
 		}
 		panic("cannot insert element, cuckoofilter is full")
@@ -121,8 +121,8 @@ func (cuckooFilter *CuckooFilter) Lookup(data []byte) bool {
 	defer cuckooFilter.lock.Unlock()
 
 	fingerPrint, fIndex, sIndex, _ := cuckooFilter.getPositions(data)
-	return cuckooFilter.buckets[fIndex].Lookup(fingerPrint) ||
-		cuckooFilter.buckets[sIndex].Lookup(fingerPrint)
+	return cuckooFilter.buckets[fIndex].lookup(fingerPrint) ||
+		cuckooFilter.buckets[sIndex].lookup(fingerPrint)
 }
 
 // Remove deletes the _data_ from the Cuckoo Filter
@@ -131,12 +131,12 @@ func (cuckooFilter *CuckooFilter) Remove(data []byte) bool {
 	defer cuckooFilter.lock.Unlock()
 
 	fingerPrint, fIndex, sIndex, _ := cuckooFilter.getPositions(data)
-	if cuckooFilter.buckets[fIndex].Lookup(fingerPrint) {
-		cuckooFilter.buckets[fIndex].Remove(fingerPrint)
+	if cuckooFilter.buckets[fIndex].lookup(fingerPrint) {
+		cuckooFilter.buckets[fIndex].remove(fingerPrint)
 		cuckooFilter.length--
 		return true
-	} else if cuckooFilter.buckets[sIndex].Lookup(fingerPrint) {
-		cuckooFilter.buckets[sIndex].Remove(fingerPrint)
+	} else if cuckooFilter.buckets[sIndex].lookup(fingerPrint) {
+		cuckooFilter.buckets[sIndex].remove(fingerPrint)
 		cuckooFilter.length--
 		return true
 	} else {
@@ -150,7 +150,7 @@ func (aFilter *CuckooFilter) Equals(bFilter *CuckooFilter) bool {
 	result := true
 	for result && count < len(aFilter.buckets) {
 		bucket := aFilter.buckets[count]
-		if !bFilter.buckets[count].Equals(&bucket) {
+		if !bFilter.buckets[count].equals(&bucket) {
 			return false
 		}
 		count++
@@ -180,7 +180,7 @@ func (cuckooFilter *CuckooFilter) Export() ([]byte, error) {
 	bucketsJSON := make([]bucketMemJSON, cuckooFilter.size)
 	for i := range cuckooFilter.buckets {
 		bucket := cuckooFilter.buckets[i]
-		bucketJSON := bucketMemJSON{bucket.Size(), bucket.Length(), bucket.Elements()}
+		bucketJSON := bucketMemJSON{bucket.Size(), bucket.getLength(), bucket.getElements()}
 		bucketsJSON[i] = bucketJSON
 	}
 	return json.Marshal(cuckooFilterMemJSON{
@@ -208,9 +208,9 @@ func (cuckooFilter *CuckooFilter) Import(data []byte) error {
 	filters := make([]BucketMem, f.Size)
 	for i := range f.Buckets {
 		bucketJSON := f.Buckets[i]
-		bucket := *NewBucketMem(f.BucketSize)
+		bucket := *newBucketMem(f.BucketSize)
 		for j := range bucketJSON.Elements {
-			bucket.Add(bucketJSON.Elements[j])
+			bucket.add(bucketJSON.Elements[j])
 		}
 		filters[i] = bucket
 	}
@@ -244,7 +244,7 @@ func (cuckooFilter *CuckooFilter) WriteTo(stream io.Writer) (int64, error) {
 	}
 	numBytes := int64(0)
 	for i := uint64(0); i < cuckooFilter.size; i++ {
-		bytes, err := cuckooFilter.buckets[i].WriteTo(stream)
+		bytes, err := cuckooFilter.buckets[i].writeTo(stream)
 		if err != nil {
 			return 0, err
 		}
@@ -286,8 +286,8 @@ func (cuckooFilter *CuckooFilter) ReadFrom(stream io.Reader) (int64, error) {
 	cuckooFilter.buckets = make([]BucketMem, size)
 	numBytes := int64(0)
 	for i := uint64(0); i < cuckooFilter.size; i++ {
-		bucket := NewBucketMem(0)
-		bytes, err := bucket.ReadFrom(stream)
+		bucket := newBucketMem(0)
+		bytes, err := bucket.readFrom(stream)
 		if err != nil {
 			return 0, err
 		}

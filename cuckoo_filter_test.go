@@ -17,7 +17,7 @@ func TestCuckooFilterBasic(t *testing.T) {
 	}
 	bucketsLength := 0
 	for b := range filter.buckets {
-		bucketsLength += int(filter.buckets[b].Length())
+		bucketsLength += int(filter.buckets[b].getLength())
 	}
 	if bucketsLength != 2 {
 		t.Errorf("total elements insisde buckets should be 2, instead found %v", bucketsLength)
@@ -32,7 +32,7 @@ func TestAddDifferentBuckets(t *testing.T) {
 	filter.Insert(e, false)
 	filter.Insert(e, false)
 	_, fIndex, sIndex, _ := filter.getPositions(e)
-	if filter.buckets[fIndex].IsFree() || filter.buckets[sIndex].IsFree() {
+	if filter.buckets[fIndex].isFree() || filter.buckets[sIndex].isFree() {
 		t.Error("both buckets should be full")
 	}
 	if filter.length != 4 {
@@ -40,7 +40,7 @@ func TestAddDifferentBuckets(t *testing.T) {
 	}
 	bucketsLength := 0
 	for b := range filter.buckets {
-		bucketsLength += int(filter.buckets[b].Length())
+		bucketsLength += int(filter.buckets[b].getLength())
 	}
 	if bucketsLength != 4 {
 		t.Errorf("total elements insisde buckets should be 4, instead found %v", bucketsLength)
@@ -51,8 +51,8 @@ func TestRetries(t *testing.T) {
 	filter := NewCuckooFilterWithRetries(10, 1, 3, 1)
 	e := []byte("foo")
 	fingerPrint, fIndex, sIndex, _ := filter.getPositions(e)
-	filter.buckets[fIndex].Add("bar")
-	filter.buckets[sIndex].Add("baz")
+	filter.buckets[fIndex].add("bar")
+	filter.buckets[sIndex].add("baz")
 	filter.length += 2
 	ok := filter.Insert(e, false)
 	if !ok {
@@ -61,13 +61,13 @@ func TestRetries(t *testing.T) {
 	bucketsLength := 0
 	for b := range filter.buckets {
 		bucket := filter.buckets[b]
-		if bucket.Length() > 0 {
-			elem := bucket.At(0)
+		if bucket.getLength() > 0 {
+			elem := bucket.at(0)
 			if elem != "bar" && elem != "baz" && elem != fingerPrint {
 				t.Errorf("elem shuold be either \"bar\", \"baz\" or \"%s\", instead found %v", fingerPrint, elem)
 			}
 		}
-		bucketsLength += int(bucket.Length())
+		bucketsLength += int(bucket.getLength())
 	}
 	if filter.length != 3 {
 		t.Errorf("filter length should be 3, instead found %v", filter.length)

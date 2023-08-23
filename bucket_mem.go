@@ -21,84 +21,84 @@ type BucketMem struct {
 }
 
 // NewBucketMem creates a new BucketMem
-func NewBucketMem(size uint64) *BucketMem {
+func newBucketMem(size uint64) *BucketMem {
 	bucket := &AbstractBucket{}
 	bucket.size = size
 	return &BucketMem{make([]string, size), 0, bucket}
 }
 
 // Length returns the number of entries in the bucket
-func (bucket *BucketMem) Length() uint64 {
+func (bucket *BucketMem) getLength() uint64 {
 	return bucket.length
 }
 
 // IsFree returns true if there is room for more entries in the bucket,
 // otherwise false.
-func (bucket *BucketMem) IsFree() bool {
+func (bucket *BucketMem) isFree() bool {
 	return bucket.length < bucket.size
 }
 
 // Elements returns the string slice _elements_
-func (bucket *BucketMem) Elements() []string {
+func (bucket *BucketMem) getElements() []string {
 	return bucket.elements
 }
 
 // NextSlot returns the next empty slot in the bucket starting from index 0
-func (bucket *BucketMem) NextSlot() int64 {
+func (bucket *BucketMem) nextSlot() int64 {
 	return bucket.indexOf("")
 }
 
 // At returns the value stored at _index_
-func (bucket *BucketMem) At(index uint64) string {
+func (bucket *BucketMem) at(index uint64) string {
 	return bucket.elements[index]
 }
 
 // Add inserts the _element_ in the bucket at the next available slot
-func (bucket *BucketMem) Add(element string) bool {
-	if element == "" || !bucket.IsFree() {
+func (bucket *BucketMem) add(element string) bool {
+	if element == "" || !bucket.isFree() {
 		return false
 	}
-	bucket.Set(uint64(bucket.NextSlot()), element)
+	bucket.set(uint64(bucket.nextSlot()), element)
 	bucket.length++
 	return true
 }
 
 // Remove deletes the entry _element_ from the bucket
-func (bucket *BucketMem) Remove(element string) bool {
+func (bucket *BucketMem) remove(element string) bool {
 	index := bucket.indexOf(element)
 	if index <= -1 {
 		return false
 	}
-	bucket.UnSet(uint64(index))
+	bucket.unSet(uint64(index))
 	return true
 }
 
 // Lookup returns true if the _element_ is present in the bucket, otherwise false
-func (bucket *BucketMem) Lookup(element string) bool {
+func (bucket *BucketMem) lookup(element string) bool {
 	return bucket.indexOf(element) > -1
 }
 
 // Set inserts the _element_ at the specified _index_
-func (bucket *BucketMem) Set(index uint64, element string) {
+func (bucket *BucketMem) set(index uint64, element string) {
 	bucket.elements[index] = element
 }
 
 // UnSet removes the element stored at the specified _index_
-func (bucket *BucketMem) UnSet(index uint64) {
+func (bucket *BucketMem) unSet(index uint64) {
 	bucket.elements[index] = ""
 	bucket.length--
 }
 
 // Swap inserts the specified _element_ at the specified _index_
 // and returns the element stored previously stored at the _index_
-func (bucket *BucketMem) Swap(index uint64, element string) string {
+func (bucket *BucketMem) swap(index uint64, element string) string {
 	temp := bucket.elements[index]
 	bucket.elements[index] = element
 	return temp
 }
 
 // Equals checks if two BucketMem are equal
-func (bucket *BucketMem) Equals(otherBucket *BucketMem) bool {
+func (bucket *BucketMem) equals(otherBucket *BucketMem) bool {
 	if bucket.size != otherBucket.size || bucket.length != otherBucket.length {
 		return false
 	}
@@ -113,7 +113,7 @@ func (bucket *BucketMem) Equals(otherBucket *BucketMem) bool {
 // WriteTo writes the BucketMem onto the specified _stream_ and returns the
 // number of bytes written.
 // It can be used to write to disk (using a file stream) or to network.
-func (bucket *BucketMem) WriteTo(stream io.Writer) (int64, error) {
+func (bucket *BucketMem) writeTo(stream io.Writer) (int64, error) {
 	err := binary.Write(stream, binary.BigEndian, uint64(bucket.size))
 	if err != nil {
 		return 0, err
@@ -141,7 +141,7 @@ func (bucket *BucketMem) WriteTo(stream io.Writer) (int64, error) {
 // ReadFrom reads the BucketMem from the specified _stream_ and returns the
 // number of bytes read.
 // It can be used to read from disk (using a file stream) or from network.
-func (bucket *BucketMem) ReadFrom(stream io.Reader) (int64, error) {
+func (bucket *BucketMem) readFrom(stream io.Reader) (int64, error) {
 	var size, length uint64
 	err := binary.Read(stream, binary.BigEndian, &size)
 	if err != nil {
