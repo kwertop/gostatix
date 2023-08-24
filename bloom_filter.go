@@ -1,7 +1,6 @@
 /*
-Package filters provides data structures and methods for creating probabilistic filters.
-This package provides implementations of two of the most widely used filters,
-Bloom Filter and Cuckoo Filter.
+Provides data structures and methods for creating probabilistic filters.
+This package provides implementation of Bloom Filter.
 */
 package gostatix
 

@@ -72,7 +72,7 @@ func main() {
     bloomRedis, _ := gostatix.NewRedisBloomFilterWithParameters(1000000, 0.001)
 
     e1 := []byte("cat")
-	e2 := []byte("dog")
+    e2 := []byte("dog")
 
     // insert a few elements - "cat" and "dog"
     bloomRedis.Insert(e1).Insert(e2)
@@ -86,3 +86,11 @@ func main() {
 }
 
 ```
+
+## Cuckoo Filters
+
+A Cuckoo filter is a data structure used for approximate set membership queries, similar to a Bloom filter. It is designed to provide a compromise between memory efficiency, fast membership queries, and the ability to delete elements from the filter. Unlike a Bloom filter, a Cuckoo filter allows for efficient removal of elements while maintaining relatively low false positive rates.
+Refer: https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf
+
+### In-memory
+

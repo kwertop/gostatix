@@ -1,3 +1,7 @@
+/*
+Provides data structures and methods for creating probabilistic filters.
+This package provides implementation Cuckoo Filter.
+*/
 package gostatix
 
 import (

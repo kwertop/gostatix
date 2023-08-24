@@ -1,5 +1,5 @@
 /*
-Package bitset implements bitsets - both in-memory and redis.
+Implements bitsets - both in-memory and redis.
 For in-memory, https://github.com/bits-and-blooms/bitset is used while
 for redis, bitset operations of redis are used.
 */

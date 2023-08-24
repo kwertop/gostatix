@@ -1,13 +1,10 @@
 /*
-Package count implements various probabilistic data structures used in counting.
+Implements probabilistic data structure hyperloglog used in estimating unique entries in a
+large dataset.
 
- 1. Count-Min Sketch: A probabilistic data structure used to estimate the frequency
-    of items in a data stream. Refer: http://dimacs.rutgers.edu/~graham/pubs/papers/cm-full.pdf
- 2. Hyperloglog: A probabilistic data structure used for estimating the cardinality
-    (number of unique elements) of in a very large dataset.
-    Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
- 3. Top-K: A data structure is designed to efficiently retrieve the "top-K" or "largest-K"
-    elements from a dataset based on a certain criterion, such as frequency, value, or score
+Hyperloglog: A probabilistic data structure used for estimating the cardinality
+(number of unique elements) of in a very large dataset.
+Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
 
 The package implements both in-mem and Redis backed solutions for the data structures. The
 in-memory data structures are thread-safe.

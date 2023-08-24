@@ -1,5 +1,5 @@
 /*
-Package buckets implements buckets - a container of fixed number of entries
+Implements buckets - a container of fixed number of entries
 used in cuckoo filters.
 */
 package gostatix
