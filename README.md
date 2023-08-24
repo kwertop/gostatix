@@ -94,3 +94,305 @@ Refer: https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf
 
 ### In-memory
 
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// create a new in-memory cuckoo filter with 1000000 items and a false positive rate of 0.0001
+    // see doc for more details
+	filter := gostatix.NewCuckooFilterWithErrorRate(100000, 4, 100, 0.001)
+
+	e1 := []byte("cat")
+	e2 := []byte("dog")
+
+	// insert a few elements - "cat" and "dog"
+	filter.Insert(e1, false)
+    filter.Insert(e2, false)
+
+	// do a lookup for an element
+	ok := filter.Lookup(e1)
+	fmt.Printf("found cat, %v\n", ok) // found cat, true
+
+	ok = filter.Lookup([]byte("elephant"))
+	fmt.Printf("found elephant, %v\n", ok) // found elephant, false
+
+	ok = filter.Lookup(e2)
+	fmt.Printf("found dog, %v\n", ok) // found dog, true
+
+	//remove an element
+	_ = filter.Remove(e2)
+
+	ok = filter.Lookup(e2)
+	fmt.Printf("found dog, %v\n", ok) // found dog, false
+}
+
+```
+
+### Redis
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// parse redis uri
+	redisConnOpt, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+
+	// create redis connection
+	gostatix.MakeRedisClient(*redisConnOpt)
+
+    // create a new redis backed cuckoo filter with 1000000 items and a false positive rate of 0.0001
+    // see doc for more details
+	filter, _ := gostatix.NewCuckooFilterRedisWithErrorRate(1000000, 4, 100, 0.001)
+
+	// insert a few elements - "cat" and "dog"
+	filter.Insert(e1, false)
+	filter.Insert(e2, false)
+
+	// do a lookup for an element
+	ok, _ = filter.Lookup(e1)
+	fmt.Printf("found cat, %v\n", ok) // found cat, true
+
+	ok, _ = filter.Lookup([]byte("elephant"))
+	fmt.Printf("found elephant, %v\n", ok) // found elephant, false
+
+	ok, _ = filter.Lookup(e2)
+	fmt.Printf("found dog, %v\n", ok) // found dog, true
+
+	//remove an element
+	_, _ = filter.Remove(e2)
+
+	ok, _ = filter.Lookup(e2)
+	fmt.Printf("found dog, %v\n", ok) // found dog, false
+}
+```
+
+## Count-Min Sketch
+
+A probabilistic data structure used to estimate the frequency of items in a data stream.
+Refer: http://dimacs.rutgers.edu/~graham/pubs/papers/cm-full.pdf
+
+### In-memory
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// create a new in-memory count-min sketch with error rate of 0.0001 and delta of 0.9999
+	sketch, _ := gostatix.NewCountMinSketchFromEstimates(0.0001, 0.9999)
+
+	e1 := []byte("cat")
+	e2 := []byte("dog")
+
+	// insert counts of few elements - "cat" and "dog"
+	sketch.Update(e1, 2)
+	sketch.Update(e2, 3)
+	sketch.Update(e1, 1)
+
+	// do a lookup for an count for any element
+	count := sketch.Count(e1)
+	fmt.Printf("found %v cats\n", count) // found 3 cats
+}
+
+```
+
+### Redis
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// create redis connection
+	gostatix.MakeRedisClient(*redisConnOpt)
+
+    // create a new redis backed count-min sketch with error rate of 0.0001 and delta of 0.9999
+	sketch, _ := gostatix.NewCountMinSketchRedisFromEstimates(0.001, 0.999)
+
+    e1 := []byte("cat")
+	e2 := []byte("dog")
+
+	// insert counts of few elements - "cat" and "dog"
+	err := sketch.Update(e1, 2)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+	}
+	sketch.Update(e2, 3)
+	sketch.Update(e1, 1)
+
+	// do a lookup for an count for any element
+	count, _ = sketch.Count(e1)
+	fmt.Printf("found %v cats\n", count) // found 3 cats
+}
+
+```
+
+## HyperLogLog
+
+A probabilistic data structure used for estimating the cardinality (number of unique elements) of in a very large dataset.
+Refer: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
+
+### In-memory
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// create a new in-memory hyperloglog with 4 registers
+	hll, _ := gostatix.NewHyperLogLog(4)
+
+	e1 := []byte("cat")
+	e2 := []byte("dog")
+
+	// insert counts of few elements
+	hll.Update(e1)
+	hll.Update(e2)
+	hll.Update(e1)
+
+	// do a lookup for count of distinct elements
+	distinct := hll.Count(true, true)
+	fmt.Printf("found %v distinct elements\n", distinct) // found 2 distinct elements
+}
+
+```
+
+### Redis
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// parse redis uri
+	redisConnOpt, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+
+	// create redis connection
+	gostatix.MakeRedisClient(*redisConnOpt)
+
+	// create a new redis backed hyperloglog with 4 registers
+	hll, _ := gostatix.NewHyperLogLogRedis(4)
+
+    e1 := []byte("cat")
+	e2 := []byte("dog")
+
+	// insert counts of few elements
+	hll.Update(e1)
+	hll.Update(e2)
+	hll.Update(e1)
+
+	// do a lookup for count of distinct elements
+	distinct, _ := hll.Count(true, true)
+	fmt.Printf("found %v distinct elements\n", distinct) // found 2 distinct elements
+}
+
+```
+
+## Top-K
+
+It's a data structure designed to efficiently retrieve the "top-K" or "largest-K" elements from a dataset based on a certain criterion, such as frequency, value, or score.
+
+### In-memory
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// create a new in-memory top-k with k=2, error rate of 0.001 and delta of 0.999
+	t := gostatix.NewTopK(2, 0.001, 0.999)
+
+	e1 := []byte("cat")
+	e2 := []byte("dog")
+	e3 := []byte("lion")
+	e4 := []byte("tiger")
+
+	// insert counts of few elements
+	t.Insert(e1, 3)
+	t.Insert(e2, 2)
+	t.Insert(e1, 1)
+	t.Insert(e3, 3)
+	t.Insert(e4, 1)
+
+	// do a lookup for top-k (2) elements
+	values := t.Values()
+	fmt.Printf("%v\n", values) // [{cat 4} {lion 3}]
+}
+
+```
+
+### Redis
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/kwertop/gostatix"
+)
+
+func main() {
+	// parse redis uri
+	redisConnOpt, _ := gostatix.ParseRedisURI("redis://127.0.0.1:6379")
+
+	// create redis connection
+	gostatix.MakeRedisClient(*redisConnOpt)
+
+	// create a new redis backed top-k with k=2, error rate of 0.001 and delta of 0.999
+	t1 := gostatix.NewTopKRedis(2, 0.001, 0.999)
+
+    e1 := []byte("cat")
+	e2 := []byte("dog")
+	e3 := []byte("lion")
+	e4 := []byte("tiger")
+
+	// insert counts of few elements
+	t1.Insert(e1, 3)
+	t1.Insert(e2, 2)
+	t1.Insert(e1, 1)
+	t1.Insert(e3, 3)
+	t1.Insert(e4, 1)
+
+	// do a lookup for top-k (2) elements
+	values1, _ := t1.Values()
+	fmt.Printf("%v\n", values1) // [{cat 4} {lion 3}]
+}
+```
