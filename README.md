@@ -1,4 +1,5 @@
 GoStatix ![Tests](https://github.com/kwertop/gostatix/actions/workflows/run_tests.yml/badge.svg)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kwertop/gostatix)](https://goreportcard.com/report/github.com/kwertop/gostatix)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kwerrtop/gostatix.svg)](https://pkg.go.dev/github.com/kwertop/gostatix)
 ==========
 
